@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenMP (macOS)
+        # Apple Clang does not ship OpenMP, and CMakeLists.txt declares
+        # find_package(OpenMP REQUIRED), so configure fails without libomp.
+        if: runner.os == 'macOS'
+        run: |
+          brew install libomp
+          echo "OpenMP_ROOT=$(brew --prefix libomp)" >> "$GITHUB_ENV"
+
+      - name: Configure
+        # Visualization stays OFF: aquasph_view needs the X11 development
+        # headers that GLFW's own CMake requires at configure time, and the
+        # headless binary plus every test target links neither GL nor GLFW.
+        # See the long comment in CMakeLists.txt for the full investigation.
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Headless smoke run
+        # A simulation that builds, passes its unit tests, and then diverges on
+        # the first real timestep is still broken. This runs the actual binary
+        # against the committed config for a short, cheap simulation. Flags match
+        # parseArgs() in src/main.cpp; configs/ is copied next to the binary by
+        # the top-level CMakeLists.txt, so no --config is needed.
+        working-directory: build
+        run: ./aquasph --particles 500 --steps 50 --threads 2

@@ -12,3 +12,4 @@ Makefile
 compile_commands.json
 *.log
 _deps/
+.DS_Store
