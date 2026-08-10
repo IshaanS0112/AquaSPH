@@ -71,14 +71,30 @@ exactly what was changed and why.
 
 ## Build
 
-Requires CMake 3.16+, a C++17 compiler, and OpenMP (bundled with
-GCC/Clang). `glm`, `nlohmann_json`, and GoogleTest are fetched
-automatically via CMake `FetchContent` if not already installed on your
-system.
+Requires CMake 3.16+, a C++17 compiler, and OpenMP. `glm`,
+`nlohmann_json`, and GoogleTest are fetched automatically via CMake
+`FetchContent` if not already installed on your system.
 
 ```bash
 mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
+make -j4
+```
+
+**macOS:** Apple Clang doesn't bundle OpenMP, so the plain command above
+fails `find_package(OpenMP REQUIRED)` even after `brew install libomp` --
+Homebrew's libomp is keg-only (not linked into the default search path),
+and CMake's OpenMP auto-detection doesn't reliably find its flags/library
+on its own. Verified fix (macOS 26 / Apple Silicon / AppleClang 21 /
+CMake 4.4.2):
+
+```bash
+brew install libomp
+cmake -DCMAKE_BUILD_TYPE=Release \
+  -DOpenMP_CXX_FLAGS="-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include" \
+  -DOpenMP_CXX_LIB_NAMES="omp" \
+  -DOpenMP_omp_LIBRARY="$(brew --prefix libomp)/lib/libomp.dylib" \
+  ..
 make -j4
 ```
 
