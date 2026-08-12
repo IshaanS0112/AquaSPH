@@ -128,6 +128,14 @@ make -j4
 ./src/aquasph_view --particles 20000    # denser block
 ```
 
+macOS: add the same OpenMP flags as the plain build below (see "macOS"
+note under Build) -- `aquasph_view` links `aquasph_core`, which needs
+OpenMP too.
+
+Confirmed working end-to-end on macOS/Apple Silicon: window opens,
+particles render as speed-colored point sprites and update live,
+mouse-orbit/scroll-zoom/Esc all work as designed.
+
 Left-click-drag to orbit the camera, scroll to zoom, Esc to quit.
 Particles are colored by speed (blue = still, white = fast-moving --
 e.g. the initial floor impact). On Debian/Ubuntu, GLFW's X11 backend

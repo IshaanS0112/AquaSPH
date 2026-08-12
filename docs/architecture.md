@@ -381,6 +381,16 @@ frame. That needs a real display (X11, Wayland, macOS, or Windows) with
 working OpenGL 3.3+ drivers -- any normal desktop/laptop satisfies this;
 this project's own dev sandbox specifically does not.
 
+**Update: since confirmed working on real hardware.** Built and run on
+macOS (Apple Silicon, AppleClang 21, CMake 4.4.2) -- `aquasph_view` opens
+a window, renders the dam-break block as speed-colored point sprites
+against the dark clear color, updates live frame to frame, and responds
+to mouse-orbit/scroll-zoom/Esc as designed. This closes out the one gap
+everything above is explicit about: the renderer was correct code on
+paper (compiled, linked, ran up to the display-creation call) before
+this, and is now confirmed correct in practice, on the actual target
+platform this phase was written for.
+
 ## Building the viewer on a real machine
 
 ```bash
@@ -389,6 +399,19 @@ cmake -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_VISUALIZATION=ON ..
 make -j4
 ./src/aquasph_view                      # default scenario
 ./src/aquasph_view --particles 20000    # denser block
+```
+
+**macOS:** add the same OpenMP cache variables the headless build needs
+(see "Build note" in README.md) -- `aquasph_view` links `aquasph_core`,
+which requires OpenMP same as `aquasph` does:
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_VISUALIZATION=ON \
+  -DOpenMP_CXX_FLAGS="-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include" \
+  -DOpenMP_CXX_LIB_NAMES="omp" \
+  -DOpenMP_omp_LIBRARY="$(brew --prefix libomp)/lib/libomp.dylib" \
+  ..
+make -j4
 ```
 
 Controls: left-click-drag to orbit, scroll to zoom, Esc to quit.
