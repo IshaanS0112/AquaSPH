@@ -20,16 +20,28 @@ jobs:
         # Apple Clang does not ship OpenMP, and CMakeLists.txt declares
         # find_package(OpenMP REQUIRED), so configure fails without libomp.
         if: runner.os == 'macOS'
-        run: |
-          brew install libomp
-          echo "OpenMP_ROOT=$(brew --prefix libomp)" >> "$GITHUB_ENV"
+        run: brew install libomp
 
       - name: Configure
         # Visualization stays OFF: aquasph_view needs the X11 development
         # headers that GLFW's own CMake requires at configure time, and the
         # headless binary plus every test target links neither GL nor GLFW.
         # See the long comment in CMakeLists.txt for the full investigation.
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=ON
+        #
+        # macOS needs explicit OpenMP flags, not just an OpenMP_ROOT hint:
+        # Homebrew's libomp is keg-only, and CMake's FindOpenMP couldn't
+        # locate its flags/library from OpenMP_ROOT alone when this was
+        # tested directly on real Apple Silicon hardware (AppleClang 21,
+        # CMake 4.4.2) -- see the "macOS" note under Build in README.md.
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=ON \
+              -DOpenMP_CXX_FLAGS="-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include" \
+              -DOpenMP_CXX_LIB_NAMES="omp" \
+              -DOpenMP_omp_LIBRARY="$(brew --prefix libomp)/lib/libomp.dylib"
+          else
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=ON
+          fi
 
       - name: Build
         run: cmake --build build --parallel
