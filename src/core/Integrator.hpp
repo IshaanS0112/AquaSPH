@@ -12,7 +12,7 @@ struct BoundaryBox {
     float damping = 0.5f; // velocity retained after a wall reflection (0=inelastic, 1=perfectly elastic)
 };
 
-// 2nd-order predictor-corrector integrator, per the Phase 0 spec:
+// 2nd-order predictor-corrector integrator:
 //   1) predict v_half = v + (F/m) * dt/2
 //   2) recompute forces using v_half (captures the velocity-dependent
 //      viscosity term; pressure/gravity are unaffected since position

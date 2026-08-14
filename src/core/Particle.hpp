@@ -4,7 +4,7 @@
 namespace aquasph {
 
 // AoS (Array-of-Structures) layout: each Particle owns all of its state
-// contiguously. This is what Phase 0 uses.
+// contiguously.
 //
 // Tradeoff vs SoA (Structure-of-Arrays -- separate std::vector<vec3> for
 // positions, std::vector<float> for densities, etc.): SoA is generally
@@ -16,9 +16,7 @@ namespace aquasph {
 // parallel-array index operations instead of one struct dereference,
 // which slows down development and obscures the physics.
 //
-// Phase 0 is single-threaded and correctness-first (see project notes:
-// "no premature optimization -- get it working first, parallelize in
-// Phase 1"), so AoS is used here. Revisit in Phase 1 if profiling shows
+// Correctness came first here, so AoS is used. Revisit if profiling shows
 // the density/force loops are memory-bandwidth bound rather than
 // neighbor-search or compute bound.
 struct Particle {

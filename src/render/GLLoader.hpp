@@ -12,11 +12,10 @@
 // rather than pulling in GLAD/GLEW as an external dependency for that
 // small a surface. Every signature and enum value below was cross-checked
 // against the Khronos OpenGL registry (registry.khronos.org/OpenGL-Refpages,
-// KhronosGroup/OpenGL-Registry api/GL/glcorearb.h) while writing this --
-// see docs/architecture.md ("Phase 1.5") for how, and for why this
-// project couldn't just compile a test render and eyeball whether it
-// looked right (no OpenGL-capable display in the sandbox this was
-// developed in).
+// KhronosGroup/OpenGL-Registry api/GL/glcorearb.h) rather than written
+// from memory -- a wrong-but-valid enum constant produces no compiler
+// diagnostic and can be silently incorrect indefinitely. See
+// docs/architecture.md for one such error this check caught.
 //
 // Usage: call loadGLFunctions() exactly once, after
 // glfwMakeContextCurrent(), and check its return value before issuing
@@ -147,11 +146,9 @@ extern PFN_glUniform1f              glUniform1f;
 extern PFN_glUniform3f              glUniform3f;
 
 // Resolves every pointer above via glfwGetProcAddress. Must be called
-// after glfwMakeContextCurrent(). Returns false (and leaves a message on
-// stderr identifying which symbol failed) if any of them come back null
-// -- e.g. a genuinely pre-3.3 context, or, in this project's own
-// development sandbox, no real GL context at all (see the null-platform
-// note in docs/architecture.md).
+// after glfwMakeContextCurrent(). Returns false -- and logs which symbol
+// failed to stderr -- if any come back null, which in practice means a
+// context older than 3.3 core.
 bool loadGLFunctions();
 
 } // namespace aquasph::gl

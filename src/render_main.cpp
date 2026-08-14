@@ -1,4 +1,4 @@
-// AquaSPH Phase 1.5 -- real-time OpenGL viewer.
+// AquaSPH -- real-time OpenGL viewer.
 //
 // A separate executable from `aquasph` (main.cpp) on purpose: the
 // headless benchmark/CI binary has no reason to link GLFW/OpenGL, and
@@ -9,13 +9,9 @@
 // what's on screen here is provably the same simulation `aquasph`
 // benchmarks, not a separate/simplified copy that could quietly drift.
 //
-// IMPORTANT, READ BEFORE FILING A BUG: this file was written and
-// compile/link-verified against a locally-built GLFW (null platform
-// backend) in a sandbox with no OpenGL-capable display -- there was no
-// way to actually see a rendered frame while writing it. See
-// docs/architecture.md, "Phase 1.5", for exactly what was and wasn't
-// possible to verify, and what to check first if the window opens but
-// nothing draws.
+// Requires a real display and OpenGL 3.3+ drivers; see
+// docs/architecture.md, "Platform requirements for the viewer", for
+// per-platform prerequisites.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -109,17 +105,13 @@ int main(int argc, char** argv) {
     if (!glfwInit()) {
         const char* desc = nullptr;
         glfwGetError(&desc);
-        // Empirically the actual failure point on a machine/sandbox with
-        // no windowing backend compiled into GLFW at all (confirmed
-        // directly while developing this file: see docs/architecture.md,
-        // "Phase 1.5") -- GLFW does NOT silently fall back to its null
-        // platform here, by design, so this fails loudly and early
-        // instead of glfwCreateWindow() failing later with a more
-        // confusing error.
+        // GLFW does not silently fall back to a non-rendering backend,
+        // by design, so a headless machine fails here rather than at
+        // glfwCreateWindow() with a more confusing error.
         std::cerr << "glfwInit() failed: " << (desc ? desc : "unknown error") << "\n"
                   << "This requires a real display (X11/Wayland/macOS/Windows) with "
                      "working OpenGL 3.3+ drivers. See docs/architecture.md, "
-                     "'Phase 1.5', for the exact dev packages a Linux/X11 machine "
+                     "'Platform requirements for the viewer', for the packages a Linux/X11 machine "
                      "needs if this is that kind of failure.\n";
         return 1;
     }
@@ -132,14 +124,14 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #endif
 
-    GLFWwindow* window = glfwCreateWindow(1024, 768, "AquaSPH -- Phase 1.5 viewer", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1024, 768, "AquaSPH -- fluid viewer", nullptr, nullptr);
     if (!window) {
         const char* desc = nullptr;
         glfwGetError(&desc);
         std::cerr << "glfwCreateWindow() failed: " << (desc ? desc : "unknown error") << "\n"
                   << "This requires a real display (X11/Wayland/macOS/Windows) with "
                      "working OpenGL 3.3+ drivers. See docs/architecture.md, "
-                     "'Phase 1.5', for the exact dev packages a Linux/X11 machine "
+                     "'Platform requirements for the viewer', for the packages a Linux/X11 machine "
                      "needs (libglfw3-dev or FetchContent + mesa-common-dev, "
                      "libgl1-mesa-dev, libxrandr-dev, libxinerama-dev, "
                      "libxcursor-dev, libxi-dev, libx11-dev) if this is that kind "

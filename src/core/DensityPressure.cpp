@@ -3,12 +3,12 @@
 
 namespace aquasph {
 
-// PARALLELIZED OVER PARTICLES (Phase 1). Each iteration writes only
+// PARALLELIZED OVER PARTICLES. Each iteration writes only
 // particles[i].density/pressure -- unique per i, so no thread ever
 // writes memory another thread reads or writes -- and every read
 // (particles[j].position/mass, via the const LinkedCell/kernel/eos) is
 // unmodified during this pass. That makes this embarrassingly parallel
-// with zero synchronization needed, *except* for one thing that Phase 0
+// with zero synchronization needed, *except* for one thing that the serial version
 // got away with only because it was single-threaded: `neighbors` was a
 // single vector declared once outside the loop and reused via
 // .clear() every iteration. Under OpenMP that's a live data race the
@@ -17,7 +17,7 @@ namespace aquasph {
 // inside the `#pragma omp parallel` region but outside the `#pragma omp
 // for`, so it's allocated once per thread and reused across that
 // thread's share of iterations -- same allocation-avoidance benefit as
-// the Phase 0 version had, just scoped correctly for multiple threads.
+// the serial version had, just scoped correctly for multiple threads.
 void computeDensityPressure(std::vector<Particle>& particles,
                              const LinkedCell& grid,
                              const CubicSplineKernel& kernel,

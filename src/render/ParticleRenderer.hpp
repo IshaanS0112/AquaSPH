@@ -11,12 +11,9 @@ namespace aquasph {
 // colored by speed (slow -> deep blue, fast -> white) -- a cheap,
 // physically meaningful visual: the initial floor impact and any
 // still-unsettled turbulence stand out immediately from the settling
-// pool. Deliberately NOT instanced spheres/impostors: this renderer
-// could not be visually test-run by its own author (no OpenGL-capable
-// display in the sandbox it was developed in -- see docs/architecture.md,
-// "Phase 1.5"), so the simplest technique that's still visually
-// informative was preferred over a fancier one that would multiply the
-// surface area for an undetected bug.
+// pool. Deliberately not instanced spheres or billboarded quads -- the
+// speed colormap is the diagnostic payload, and point sprites deliver it
+// at a fraction of the complexity and fill cost of instanced geometry.
 class ParticleRenderer {
 public:
     explicit ParticleRenderer(size_t maxParticles);

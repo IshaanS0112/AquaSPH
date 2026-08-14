@@ -1,18 +1,19 @@
-# AquaSPH -- Phase 0 + Phase 1 Architecture
+# AquaSPH -- Architecture and Design Decisions
 
-## What this is
+## Overview
 
-A CPU, 3D Smoothed Particle Hydrodynamics (SPH) fluid solver, with the
-hot per-particle loops parallelized via OpenMP (Phase 1). Given a
-dam-break initial condition (a block of particles in a box, under
-gravity), it computes density, pressure, and forces every timestep via
-kernel-weighted neighbor sums, integrates with a predictor-corrector
-scheme, and reports FPS / stability. Phase 0 built and validated the
-physics single-threaded; Phase 1 (this section) parallelized the four
-loops that dominate per-step cost without changing any physics --
-see "Determinism check" in
+A CPU-based 3D Smoothed Particle Hydrodynamics fluid solver with the hot
+per-particle loops parallelized via OpenMP. Given a dam-break initial
+condition -- a block of particles in a box under gravity -- it computes
+density, pressure, and forces each timestep through kernel-weighted
+neighbor sums, integrates with a predictor-corrector scheme, and reports
+throughput and stability.
+
+The physics was built and validated single-threaded before any
+parallelization was introduced, and the parallelization was then verified
+to leave results bit-identical. See "Determinism check" in
 [`benchmarks/scaling_results.md`](../benchmarks/scaling_results.md) for
-how that claim was actually verified, not just assumed.
+how that was measured.
 
 ## Module map
 
@@ -40,7 +41,7 @@ which is what keeps it unit-testable in isolation (see
 `tests/test_integrator.cpp`, which drives it with a trivial
 gravity-only callback and zero neighbors).
 
-## Phase 1: what got parallelized, and what didn't
+## Parallelization strategy
 
 Four loops dominate per-step cost: the neighbor-sum loop inside
 `computeDensityPressure`, the neighbor-sum loop inside `computeForces`,
@@ -50,7 +51,7 @@ and the three particle-local loops inside
 neighbor-search loops, `#pragma omp parallel` with a per-thread
 `neighbors` buffer wrapping the `#pragma omp for`, since each thread
 needs its own scratch vector to call `LinkedCell::getNeighbors` into --
-Phase 0's code had one shared `neighbors` vector reused every iteration
+The original serial code had one shared `neighbors` vector reused every iteration
 via `.clear()`, which is only safe single-threaded).
 
 Each of the four loops is safe to parallelize over particles because
@@ -60,8 +61,8 @@ the integrator's -- and only *reads* (never mutates) neighboring
 particles' data. No two iterations ever write the same memory, so
 there's nothing to race on and no locking/atomics needed. This is the
 textbook "embarrassingly parallel" case, which is exactly why these
-loops (and not, say, a hypothetical global reduction) were the Phase 1
-target.
+loops (and not, say, a hypothetical global reduction) were the primary
+parallelization target.
 
 `LinkedCell::build` stays serial by contrast, and deliberately so: it
 writes into shared per-cell buckets (`std::vector<int>` per cell), and
@@ -87,8 +88,8 @@ core count), and why 8 threads doesn't help further here.
 
 `Particle` is Array-of-Structures (each particle's position, velocity,
 force, density, pressure, mass live together in one struct). This is
-the simpler layout, and the deliberate Phase 0 choice: "no premature
-optimization -- get it working first, parallelize in Phase 1." SoA
+the simpler layout, and a deliberate choice: establish correctness
+first, optimize against measurements rather than priors. SoA
 (separate `vector<vec3>` for position, separate `vector<float>` for
 density, etc.) is generally more cache- and SIMD-friendly for the
 density/force loops, since a loop touching only position and density
@@ -97,9 +98,9 @@ cost is every "particle" access becomes several parallel-array index
 operations instead of one struct dereference -- more invasive, harder to
 read, and premature before profiling shows AoS is actually the
 bottleneck (vs. the O(N) neighbor search itself, or lock contention once
-OpenMP is added in Phase 1).
+OpenMP is introduced).
 
-Phase 1's benchmark sweep gives a first, imperfect data point on this:
+The benchmark sweep gives a first, imperfect data point on this:
 parallel efficiency at 4 threads declines from ~87% at 5,832 particles
 to ~76% at 50,653 (see
 [`benchmarks/scaling_results.md`](../benchmarks/scaling_results.md)),
@@ -113,12 +114,12 @@ numbers, not a confirmed diagnosis (no `perf stat`/cache-miss profiling
 has actually been run yet) -- worth confirming with a profiler before
 committing to an SoA rewrite.
 
-## Three bugs found in the original spec, and why the fixes matter
+## Correctness problems found in the initial formulation
 
-This section exists because "why the cubic spline kernel," "why
-predictor-corrector," etc. are explicit interview talking points for
-this project. Repeating the spec's original formulas confidently would
-have been wrong in ways worth understanding, not just worth fixing.
+This section records where the initial formulation was wrong and why.
+Repeating the reference formulas as given would have produced a simulation
+that ran and looked plausible while being incorrect - these are the errors
+that had to be found before any result meant anything.
 
 ### 1. Kernel normalization constant was the 2D value, and the piecewise polynomial was discontinuous
 
@@ -164,13 +165,13 @@ The spec sets the artificial speed of sound to water's real value
 this kind of explicit weakly-compressible SPH is roughly
 `dt <~ 0.4*h/c0`; with `h=0.1`, that puts the safe ceiling at
 `dt <~ 2.86e-5s` -- about 35x smaller than the spec's `dt`. Since
-`dt` is fixed in Phase 0 (adaptive stepping is explicitly V2 scope),
+`dt` is fixed in the current solver (adaptive stepping is future work),
 the only lever is `c0`: solving `0.4*h/c0 = dt` for the *largest*
 CFL-safe `c0` at `dt=0.001, h=0.1` gives `c0 <~ 40`. The shipped default
 (`c0=25`) sits comfortably under that ceiling, trading a softer,
 more-compressible EOS for a fixed, spec-mandated timestep.
 
-## Two more issues found only by actually running the dam-break scenario
+## Instabilities found only at runtime
 
 Getting the physics formulas right wasn't sufficient -- running the full
 6,800+ particle, 1,000+ step scenario surfaced two more failure modes
@@ -240,170 +241,101 @@ continuously (not just as a rare safety net) for a few hundred steps
 after floor impact, before the flow spreads out and settles -- density
 stays bounded (roughly 1.3-1.8x rest density at the impact zone, not
 diverging further) and nothing goes NaN or leaves the domain, satisfying
-the literal Phase 0 stability requirement, but it's a sign the
+the stability requirement, but it indicates the
 floor-impact event is still under-resolved for this fixed timestep. The
 principled fix is either adaptive timestepping (shrink `dt` when
 velocities spike -- already scoped for V2) or boundary force particles
 (a continuous repulsive field near walls, so particles are slowed before
 they ever reach the boundary, rather than colliding with it). Both are
-natural Phase 1 candidates.
+natural next steps.
 
-## Phase 1.5: OpenGL/GLFW viewer
+## Visualization layer
 
-A second executable, `aquasph_view` (built only when
-`AQUASPH_BUILD_VISUALIZATION=ON`), renders the live simulation instead of
-just benchmarking it. Deliberately a *second* executable rather than
-adding rendering to `aquasph`: the headless benchmark/CI binary has no
-reason to link GLFW at all, and keeping it that way means a machine
-without GL dev headers (a minimal CI runner, or this project's own dev
-sandbox -- see below) can still build and test everything else with the
-default `AQUASPH_BUILD_VISUALIZATION=OFF`. Both executables call the
-exact same physics functions in the exact same order (`grid.build` ->
-`computeDensityPressure` -> `computeForces` -> `integrator.step`) and
-the exact same dam-break initializer (`core/DamBreakInit.*`, factored out
-of `main.cpp` in this phase specifically so both entry points share it
-instead of risking two copies drifting apart) -- what's on screen is
-provably the same simulation `aquasph` benchmarks, not a simplified
-stand-in.
+`aquasph_view` (built only when `AQUASPH_BUILD_VISUALIZATION=ON`) renders the
+live simulation rather than only benchmarking it. It is a separate executable
+by design: the headless solver and the entire test suite have no reason to
+link GLFW, and keeping that dependency isolated means the core project builds
+and tests on machines without GL development headers -- including minimal CI
+runners.
+
+Both executables call the same physics functions in the same order
+(`grid.build` -> `computeDensityPressure` -> `computeForces` ->
+`integrator.step`) and share the same scenario initializer
+(`core/DamBreakInit.*`, extracted from `main.cpp` precisely so the two entry
+points cannot drift apart). What is rendered is provably the same simulation
+that is benchmarked, not a simplified stand-in.
 
 Module map (`src/render/`):
 
 ```
-render/GLLoader.*          Hand-rolled OpenGL 3.3 core function loader
-render/Shader.*             GLSL compile/link + uniform-setting helpers
-render/Camera.*              Mouse-orbit camera (view + projection matrices)
-render/ParticleRenderer.*    VAO/VBO particle upload + point-sprite draw
-render_main.cpp               Window/context setup, input, render loop
+render/GLLoader.*          OpenGL 3.3 core function loader
+render/Shader.*            GLSL compile/link + uniform helpers
+render/Camera.*            Mouse-orbit camera (view + projection matrices)
+render/ParticleRenderer.*  VAO/VBO particle upload + point-sprite draw
+render_main.cpp            Window/context setup, input handling, render loop
 ```
 
-**Why a hand-rolled GL loader instead of GLAD/GLEW.** Modern OpenGL
-functions (essentially anything past the GL 1.1 fixed-function subset)
-aren't necessarily link-time symbols in the platform's GL library --
-the portable way to obtain them, on every platform, is a runtime lookup
-via `glfwGetProcAddress`. A loader is therefore the *correct* tool here,
-not a workaround; `GLLoader.hpp` declares the ~30 entry points this
-project's renderer actually calls rather than pulling in a
-several-thousand-line generated header for that small a surface. Every
-signature and enum value in it was cross-checked against the Khronos
-OpenGL registry while writing it (`registry.khronos.org/OpenGL-Refpages`,
-`KhronosGroup/OpenGL-Registry api/GL/glcorearb.h`) rather than typed from
-memory -- one real near-miss doing that check: `GL_PROGRAM_POINT_SIZE`
-(an easy, plausible-looking guess) turned out to not be the correct
-symbol at all; the real one is `GL_VERTEX_PROGRAM_POINT_SIZE` (`0x8642`).
-That's exactly the kind of silently-wrong-forever constant that no
-compiler warning would ever catch, and which this project could not have
-caught by just running the renderer and looking at it either (see below)
--- checking against the authoritative source was the only real defense.
+### Why a hand-written GL loader rather than GLAD/GLEW
 
-**Rendering technique.** Particles draw as `GL_POINTS`, colored by speed
-(still water -> deep blue, fast-moving particles -- e.g. the
-floor-impact spike documented above -- -> white) and rounded into
-circles in the fragment shader via a `gl_PointCoord` discard, rather
-than instanced spheres or billboarded quads. Simpler, and deliberately
-so: this renderer could not be visually test-run by its own author (see
-below), so the simplest technique that's still visually informative was
-preferred over a fancier one that would multiply the surface area for
-an undetected bug.
+Modern OpenGL entry points -- essentially everything past the GL 1.1
+fixed-function subset -- are not guaranteed to be link-time symbols in the
+platform's GL library. The portable way to obtain them on every platform is a
+runtime lookup, which GLFW exposes uniformly as `glfwGetProcAddress`. A loader
+is therefore the correct tool rather than a workaround, and `GLLoader.hpp`
+declares only the ~30 entry points this renderer actually calls instead of
+pulling in a multi-thousand-line generated header for that surface area.
 
-## Investigating OpenGL/GLFW feasibility in this project's dev sandbox
+Every signature and enum value was cross-checked against the Khronos OpenGL
+registry (`registry.khronos.org/OpenGL-Refpages`, `api/GL/glcorearb.h`) rather
+than written from memory. That check caught a real error: `GL_PROGRAM_POINT_SIZE`
+is a plausible-looking but incorrect symbol -- the actual constant is
+`GL_VERTEX_PROGRAM_POINT_SIZE` (`0x8642`). No compiler warning would flag a
+wrong-but-valid integer constant, and the visible symptom would have been
+subtly incorrect point sizing rather than an obvious failure.
 
-This project was largely built in a sandboxed Linux VM with no display
-server and no `sudo`. Before writing the renderer, that sandbox's actual
-capability was checked empirically rather than assumed -- the findings
-below are measured, not guessed, and shaped several of the decisions
-above:
+A consequence of this design worth noting: the built binary has no link-time
+dependency on `libGL` or `libX11` at all (confirmed with `ldd`) -- GLFW
+resolves those through `dlopen` at runtime. This is why the build requires no
+`find_package(OpenGL)`.
 
-1. **Runtime GL/X11 libraries were present, dev headers were not.**
-   `libGL.so.1`, `libX11.so.6`, `libXrandr.so.2`, `libXinerama.so.1`,
-   `libXcursor.so.1`, and `libXi.so.6` were all installed, but
-   `GL/gl.h`, `GL/glx.h`, and the `X11/extensions/Xrandr.h` (etc.)
-   *headers* were not -- confirmed with `find /usr/include`, not assumed
-   from the runtime libraries' presence. `apt-get install` (any of the
-   `*-dev` packages that ship those headers) failed with a `403
-   Forbidden` from the sandbox's package-mirror proxy, and there was no
-   `sudo` to install them even if the mirror worked. This is why GLFW's
-   own CMake configure fails on `GLFW_BUILD_X11=ON` in this specific
-   sandbox with `RandR headers not found` -- confirmed directly by
-   actually running that configure and reading the error, not inferred.
+### Rendering technique
 
-2. **EGL and OSMesa are entirely absent**, not just missing dev headers
-   -- no `libEGL.so`/`libOSMesa.so` at all. That rules out the two usual
-   "headless OpenGL" fallbacks.
+Particles are drawn as `GL_POINTS`, colored by speed (deep blue at rest,
+white at maximum velocity) and rounded into circles in the fragment shader via
+a `gl_PointCoord` distance discard, rather than instanced spheres or
+billboarded quads. The speed colormap makes the floor-impact event and
+residual turbulence immediately legible against the settled fluid, which is
+the diagnostic value the viewer exists to provide.
 
-3. **GLFW's null platform builds and links fine**, but does not itself
-   provide a real GL context. A minimal standalone test
-   (`glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL)` +
-   `glfwCreateWindow` requesting a GL 3.3 core context) failed with
-   `OSMesa: Library not found` -- the null platform's own window backend
-   tries to hand context creation off to OSMesa, which (per point 2)
-   isn't there either.
-
-4. **The real, unmodified `render_main.cpp` fails even earlier and more
-   plainly.** Without forcing the null platform (which a normal
-   `render_main.cpp` for a real machine correctly never does),
-   `glfwInit()` itself returns false with GLFW's own message: *"This
-   binary only supports the Null platform."* GLFW deliberately does not
-   auto-select the null platform for `GLFW_ANY_PLATFORM` -- so a real
-   application gets one clear, catchable, honest error instead of
-   silently limping along on a backend that can't render anything.
-   `render_main.cpp`'s `glfwInit()` failure branch prints this message
-   verbatim along with pointers to the package list below.
-
-**Conclusion: no OpenGL context is creatable in this sandbox, under any
-GLFW backend, without root.** This is a genuine environment limitation,
-not a code gap -- confirmed by exhausting every fallback GLFW itself
-supports (X11, EGL, OSMesa, null), not by giving up after the first one.
-
-**What was still verified, given that constraint.** The renderer's
-CMake target (`aquasph_view`) was configured and built end-to-end against
-a real, locally-built GLFW 3.4 (source from GitHub, configured with
-`-DGLFW_BUILD_X11=OFF -DGLFW_BUILD_WAYLAND=OFF` so it would configure at
-all in this sandbox) -- every file in `src/render/` plus
-`render_main.cpp` compiled and linked with **zero warnings or errors**
-under this project's `-Wall -Wextra`. The full existing test suite (20/20
-GoogleTest cases) and the headless `aquasph` binary were re-verified
-immediately after, to confirm the `DamBreakInit` refactor and other
-Phase 1.5 changes caused no regression to the already-verified Phase 0/1
-physics. Running the resulting `aquasph_view` reaches exactly the
-`glfwInit()` failure described in point 4 above -- not a crash, not a
-hang, a clean, informative, expected failure -- which is itself a form of
-verification: the renderer's own code (config load, particle init, GLFW
-setup sequence, error handling) runs correctly right up to the true
-environment limit. `ldd` on the built `aquasph_view` confirms it has no
-dynamic link-time dependency on `libGL`/`libX11` at all (GLFW resolves
-those via `dlopen` at its own runtime, not at link time) -- a concrete
-confirmation that this project's "no `find_package(OpenGL)`, resolve
-everything through `glfwGetProcAddress`" design (see `GLLoader.hpp`)
-is real, not just asserted.
-
-**What was not, and could not be, verified here:** an actual rendered
-frame. That needs a real display (X11, Wayland, macOS, or Windows) with
-working OpenGL 3.3+ drivers -- any normal desktop/laptop satisfies this;
-this project's own dev sandbox specifically does not.
-
-**Update: since confirmed working on real hardware.** Built and run on
-macOS (Apple Silicon, AppleClang 21, CMake 4.4.2) -- `aquasph_view` opens
-a window, renders the dam-break block as speed-colored point sprites
-against the dark clear color, updates live frame to frame, and responds
-to mouse-orbit/scroll-zoom/Esc as designed. This closes out the one gap
-everything above is explicit about: the renderer was correct code on
-paper (compiled, linked, ran up to the display-creation call) before
-this, and is now confirmed correct in practice, on the actual target
-platform this phase was written for.
-
-## Building the viewer on a real machine
+## Platform requirements for the viewer
 
 ```bash
 mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_VISUALIZATION=ON ..
 make -j4
-./src/aquasph_view                      # default scenario
-./src/aquasph_view --particles 20000    # denser block
+./aquasph_view                          # default scenario
+./aquasph_view --particles 20000        # denser block
 ```
 
-**macOS:** add the same OpenMP cache variables the headless build needs
-(see "Build note" in README.md) -- `aquasph_view` links `aquasph_core`,
-which requires OpenMP same as `aquasph` does:
+Controls: left-drag to orbit, scroll to zoom, `Esc` to quit.
+
+**Linux/X11.** GLFW's X11 backend requires development headers at configure
+time, not merely the runtime shared libraries. On Debian/Ubuntu:
+
+```bash
+sudo apt install libglfw3-dev mesa-common-dev libgl1-mesa-dev \
+  libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libx11-dev
+```
+
+If `libglfw3-dev` is present, `find_package(glfw3)` uses it directly and the
+`FetchContent` path is skipped entirely. A system with the runtime `.so` files
+but no `-dev` packages will fail GLFW's own configure step with
+`RandR headers not found`, which is the most common cause of a failed
+visualization build on Linux.
+
+**macOS.** No additional system packages beyond a standard Xcode toolchain,
+but the OpenMP cache variables from the README are still required, since
+`aquasph_view` links `aquasph_core`:
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_VISUALIZATION=ON \
@@ -414,20 +346,13 @@ cmake -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_VISUALIZATION=ON \
 make -j4
 ```
 
-Controls: left-click-drag to orbit, scroll to zoom, Esc to quit.
+**Headless environments.** The viewer requires a real display and working
+OpenGL 3.3+ drivers. GLFW does not silently fall back to a non-rendering
+backend, so on a headless machine `glfwInit()` fails immediately with a clear
+diagnostic rather than producing a black window -- `render_main.cpp` surfaces
+that message directly along with a pointer to the package list above. This is
+also why CI builds with `AQUASPH_BUILD_VISUALIZATION=OFF`.
 
-On Debian/Ubuntu, GLFW's X11 backend needs these dev packages (this is
-the exact list this project's own sandbox was missing -- see above):
-
-```bash
-sudo apt install libglfw3-dev mesa-common-dev libgl1-mesa-dev \
-  libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libx11-dev
-```
-
-If `libglfw3-dev` is already installed, CMake's `find_package(glfw3)`
-picks it up directly and skips the `FetchContent` build entirely. macOS
-and Windows need no extra system packages beyond a normal Xcode/MSVC
-toolchain -- GLFW's CMake handles both natively.
 
 ## Build note: dependencies via FetchContent
 
@@ -437,18 +362,18 @@ apt/vcpkg/etc. just uses those), falling back to CMake `FetchContent`
 (pulled from GitHub at configure time) if not found. No dependency
 source is vendored into this repository.
 
-## Known limitations / next candidates
+## Known limitations and future work
 
-- `LinkedCell::build` is still serial (see "Phase 1" section above for
+- `LinkedCell::build` is still serial (see "Parallelization strategy" above for
   why, and what parallelizing it correctly would require).
 - Fixed timestep. Adaptive `dt` (shrinking it when the CFL condition or
   a max-force/velocity check demands it) would remove the need for the
   velocity clamp described above and let higher-fidelity floor-impact
   behavior actually be resolved instead of clipped.
 - Boundary handling is a simple clamp+damp, not boundary-force particles
-  or ghost particles -- adequate for Phase 0/1 but the standard place
+  or ghost particles -- adequate for the solver but the standard place
   production SPH codes invest next.
-- AoS particle layout (see above) -- Phase 1's benchmark data hints at a
+- AoS particle layout (see above) -- benchmark data hints at a
   memory-bandwidth cost at scale, but that's unconfirmed without actual
   profiler output.
 - Benchmark methodology couples particle count with local density (see

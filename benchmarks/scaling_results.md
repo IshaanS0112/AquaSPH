@@ -1,9 +1,9 @@
-# AquaSPH -- Benchmark Results (Phase 0 + Phase 1 OpenMP)
+# AquaSPH -- Benchmark Results
 
 All numbers below are measured, not estimated -- captured from real runs
 of `./aquasph --particles N --steps S --threads T --quiet` in Release
-mode, same build, same machine (a 4-core sandbox VM -- see hardware note
-below), same session, immediately after a clean rebuild.
+mode, same build, same 4-core machine (see hardware note below), same
+session, immediately after a clean rebuild.
 
 ## Multi-thread results
 
@@ -14,14 +14,14 @@ below), same session, immediately after a clean rebuild.
 | 27,000 | 5.32 FPS (188.024 ms/step)  | 10.19 FPS (98.137 ms/step) | 16.86 FPS (59.330 ms/step) | 16.35 FPS (61.173 ms/step) | 3.17x |
 | 50,653 | 1.36 FPS (734.266 ms/step)  | 2.64 FPS (378.374 ms/step) | 4.13 FPS (241.929 ms/step) | 4.08 FPS (245.154 ms/step) | 3.03x |
 
-(Particle counts aren't exactly 5k/10k/25k/50k for the same reason as
-Phase 0: `--particles N` targets N via a cubic lattice, the actual count
+(Particle counts aren't exactly 5k/10k/25k/50k because
+`--particles N` targets N via a cubic lattice, the actual count
 is whichever perfect cube comes closest, and the program always prints
 the real count it used.)
 
 ## Hardware: 4 physical cores, not 8
 
-This sandbox reports `nproc` = 4. That's why the table above has an
+The benchmark machine reports `nproc` = 4. That's why the table above has an
 8-thread column but it's never the fastest one: 8 threads on 4 physical
 cores is oversubscription, not parallelism -- the OS is now
 time-slicing 8 software threads across 4 hardware cores, which adds
@@ -55,7 +55,7 @@ counters). If it holds up, it's a concrete, measured reason to revisit
 the AoS-vs-SoA tradeoff in a later phase, rather than a vague "SoA is
 usually faster" argument.
 
-## Determinism check (the actual correctness bar for Phase 1)
+## Determinism check (the correctness bar for parallelization)
 
 FPS differing by thread count is expected and desired. What must *not*
 differ is the physics: parallelizing `computeDensityPressure` and
@@ -64,8 +64,7 @@ writes exactly one particle's own fields and reads (without mutating)
 its neighbors' -- see the comments in `src/core/DensityPressure.cpp` and
 `src/core/ForceCompute.cpp` for the full reasoning, including the
 data-race that a naive parallelization would have hit (a single shared
-`neighbors` buffer reused across iterations, safe only when there was
-one thread).
+`neighbors` buffer reused across iterations, safe only in the single-threaded case).
 
 Verified directly: ran the same 8,000-particle dam-break scenario at 1,
 2, and 4 threads for 250 steps, comparing density min/avg/max, minimum
@@ -108,7 +107,7 @@ cd build
 # the highest number you can pass.
 ```
 
-## Stability validation (the actual Phase 0/1 success criterion)
+## Stability validation
 
 Separately from the throughput sweep above, the default scenario
 (`configs/default.json`, ~8,000-9,300 particles depending on exact

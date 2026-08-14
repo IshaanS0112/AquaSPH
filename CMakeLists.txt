@@ -11,20 +11,27 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
+# Place all executables at the build root rather than mirroring the source
+# tree into build/src/. Without this, `aquasph` lands in build/src/ while
+# the configs/ directory copied below sits in build/ -- so the documented
+# `cd build && ./aquasph` would resolve neither the binary nor its default
+# config path. Keeping both at the build root makes the documented commands
+# correct and keeps the CI invocation identical to the local one.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 option(AQUASPH_BUILD_TESTS "Build unit tests (GoogleTest)" ON)
-option(AQUASPH_BUILD_VISUALIZATION "Build the aquasph_view OpenGL/GLFW renderer (Phase 1.5)" OFF)
+option(AQUASPH_BUILD_VISUALIZATION "Build the aquasph_view OpenGL/GLFW renderer" OFF)
 
 # --- Dependencies ---------------------------------------------------------
-# OpenMP: linked from Phase 0 onward, and actually used starting Phase 1 --
-# computeDensityPressure, computeForces, and the integrator's per-particle
-# loops are parallelized with #pragma omp. LinkedCell::build is
-# deliberately still serial (see spatial/LinkedCell.cpp for why).
+# OpenMP: computeDensityPressure, computeForces, and the integrator's
+# per-particle loops are parallelized with #pragma omp. LinkedCell::build
+# is deliberately still serial (see spatial/LinkedCell.cpp for why).
 find_package(OpenMP REQUIRED)
 
 # glm and nlohmann_json: prefer a system/package-manager install
 # (find_package), fall back to fetching the header-only library at
 # configure time. This keeps the build working both on a dev machine with
-# apt/vcpkg-installed deps and on a bare sandbox with neither.
+# apt/vcpkg-installed deps and on a bare machine with neither.
 include(FetchContent)
 
 find_package(glm QUIET)
@@ -41,15 +48,13 @@ if(NOT nlohmann_json_FOUND)
   FetchContent_MakeAvailable(json)
 endif()
 
-# OpenGL/GLFW are Phase 1.5 (visualization) dependencies, used only by
-# the separate `aquasph_view` executable (src/render_main.cpp) -- the
-# headless `aquasph` binary that Phase 0/1 and every test target depend
-# on never links either, so a machine without GL dev headers (e.g. a
-# minimal CI runner, or the sandbox this project was largely developed
-# in -- see docs/architecture.md, "Phase 1.5") can still build and test
-# everything else with AQUASPH_BUILD_VISUALIZATION left at its default
-# OFF. Flip it ON on a real desktop Linux/macOS/Windows machine to build
-# the viewer too.
+# OpenGL/GLFW are visualization-only dependencies, used solely by the
+# separate `aquasph_view` executable (src/render_main.cpp). The headless
+# `aquasph` binary and every test target link neither, so a machine
+# without GL development headers (a minimal CI runner, for example) can
+# still build and test everything else with AQUASPH_BUILD_VISUALIZATION
+# left at its default OFF. Enable it on a desktop Linux/macOS/Windows
+# machine to build the viewer as well.
 if(AQUASPH_BUILD_VISUALIZATION)
   # No find_package(OpenGL) here, deliberately: aquasph_view never calls
   # a `gl*` function the linker would need to resolve against -lGL --
@@ -72,12 +77,10 @@ if(AQUASPH_BUILD_VISUALIZATION)
     # libx11-dev (their respective X11/extensions/*.h). On Debian/Ubuntu:
     #   sudo apt install libglfw3-dev mesa-common-dev libgl1-mesa-dev \
     #     libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libx11-dev
-    # (verified empirically in this project's own dev sandbox: the
-    # runtime .so files were present but every one of these dev headers
-    # was missing, which is exactly what makes GLFW_BUILD_X11 fail to
-    # configure -- see docs/architecture.md, "Phase 1.5", for the full
-    # investigation.) macOS/Windows need no extra system packages beyond
-    # a normal Xcode/MSVC toolchain.
+    # A system carrying the runtime .so files but not these -dev packages
+    # is the most common cause of GLFW's configure failing with
+    # "RandR headers not found". macOS/Windows need no extra system
+    # packages beyond a normal Xcode/MSVC toolchain.
     FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.4 GIT_SHALLOW TRUE)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)

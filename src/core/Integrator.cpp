@@ -24,7 +24,7 @@ void PredictorCorrectorIntegrator::step(
 
     // All three loops below touch only particles[i] for their own index
     // i -- no cross-particle reads or writes -- so each parallelizes
-    // trivially (Phase 1). Lighter per-iteration than the density/force
+    // trivially. Lighter per-iteration than the density/force
     // kernels (no neighbor search here), but still real work at the
     // particle counts this project targets, so still worth threading.
     #pragma omp parallel for schedule(static)

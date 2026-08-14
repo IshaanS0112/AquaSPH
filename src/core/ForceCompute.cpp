@@ -4,12 +4,12 @@
 
 namespace aquasph {
 
-// PARALLELIZED OVER PARTICLES (Phase 1) -- same argument as
+// PARALLELIZED OVER PARTICLES -- same argument as
 // computeDensityPressure: each iteration writes only particles[i].force
 // (unique per i), reads everything else without mutating it, so it's
 // safe with zero synchronization once `neighbors` is made a per-thread
 // buffer (declared inside the `#pragma omp parallel` region) instead of
-// the single shared-and-reused vector Phase 0 used.
+// the single shared-and-reused vector the serial version used.
 void computeForces(std::vector<Particle>& particles,
                     const LinkedCell& grid,
                     const CubicSplineKernel& kernel,

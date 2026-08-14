@@ -10,7 +10,7 @@ namespace aquasph {
 // the kernel support radius h). The block collapses under gravity once
 // the simulation starts: the classic SPH "dam break" validation case.
 //
-// Shared by both entry points (headless `aquasph` and the Phase 1.5
+// Shared by both entry points (headless `aquasph` and the
 // `aquasph_view` renderer) so the carefully-derived mass/spacing logic
 // below -- and the bug history behind it -- exists in exactly one place.
 // See the detailed rationale in DamBreakInit.cpp.

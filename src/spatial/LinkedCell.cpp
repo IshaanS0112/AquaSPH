@@ -26,7 +26,7 @@ int LinkedCell::flatten(const glm::ivec3& c) const {
     return c.x + gridDims_.x * (c.y + gridDims_.y * c.z);
 }
 
-// DELIBERATELY SERIAL, even after Phase 1 parallelized computeDensity/
+// DELIBERATELY SERIAL, even though computeDensity/
 // ForceCompute. Naively parallelizing this loop would be a real data
 // race: multiple threads could land on the same cell and call
 // push_back() on its bucket concurrently (a std::vector isn't safe for

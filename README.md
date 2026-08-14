@@ -1,79 +1,96 @@
+<div align="center">
+
 # AquaSPH
 
-A 3D Smoothed Particle Hydrodynamics (SPH) fluid simulation engine in
-C++17, with OpenMP-parallelized physics and an optional real-time OpenGL
-viewer -- Phase 0 (core solver) + Phase 1 (CPU parallelism) + Phase 1.5
-(visualization) of a larger project (CUDA planned for V2).
+**A 3D Smoothed Particle Hydrodynamics fluid simulation engine in C++17**
 
-SPH is a Lagrangian, meshless numerical method for simulating fluids:
-instead of a fixed grid, the fluid is represented as particles that
-carry their own mass, density, and pressure, and interact with nearby
-particles through a smoothing kernel. It's standard in graduate
-computational physics / CFD coursework and production VFX tools; this
-project implements it from the ground up as an undergraduate systems/HPC
-project.
+[![CI](https://github.com/IshaanS0112/AquaSPH/actions/workflows/ci.yml/badge.svg)](https://github.com/IshaanS0112/AquaSPH/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
+[![CMake](https://img.shields.io/badge/CMake-3.16%2B-064F8C.svg?logo=cmake&logoColor=white)](https://cmake.org/)
+[![OpenMP](https://img.shields.io/badge/OpenMP-parallel-EE4C2C.svg)](https://www.openmp.org/)
+[![OpenGL](https://img.shields.io/badge/OpenGL-3.3%20core-5586A4.svg?logo=opengl)](https://www.opengl.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)](#build)
+[![Tests](https://img.shields.io/badge/tests-20%20passing-brightgreen.svg)](#testing)
 
-## What's implemented
+Lagrangian fluid solver with linked-cell neighbor search, OpenMP-parallelized
+physics, and a real-time OpenGL viewer.
 
-**Phase 0 -- core solver:**
-- Cubic spline (M4) smoothing kernel with gradient, 3D-correct
-  normalization
-- Linked-cell spatial hashing for O(N) neighbor search (vs. O(N^2)
-  naive all-pairs)
-- SPH density estimation + Tait equation of state (weakly-compressible
-  water)
-- Force computation: pressure gradient, viscosity, gravity
-- 2nd-order predictor-corrector time integration
-- JSON-configurable simulation parameters
-- Dam-break scenario, stable for 1,200+ timesteps at 8,000 particles
-- 20 unit tests (GoogleTest) covering the kernel, density/EOS, neighbor
-  search, and integrator
+</div>
 
-**Phase 1 -- OpenMP parallelism:**
-- `computeDensityPressure`, `computeForces`, and all three
-  integrator loops parallelized over particles (`#pragma omp parallel
-  for`), with per-thread neighbor buffers to avoid data races
-- `--threads N` CLI flag to set thread count at runtime
-  (`omp_set_num_threads`)
-- Determinism verified: identical physics output at 1/2/4 threads
-  (parallelism changes wall-clock time, not results)
-- Measured speedup: ~3.0-3.5x at 4 threads (this dev machine's physical
-  core count) across 5,832-50,653 particles -- see
-  [`benchmarks/scaling_results.md`](benchmarks/scaling_results.md) for
-  the full sweep, including the (expected, explained) flat/negative
-  result at 8 threads on 4 physical cores
+---
 
-**Phase 1.5 -- OpenGL/GLFW viewer:**
-- A second executable, `aquasph_view`, renders the live simulation in
-  real time (GL_POINTS particles colored by speed) instead of just
-  benchmarking it -- opt in with `-DAQUASPH_BUILD_VISUALIZATION=ON`
-- Runs the exact same physics as `aquasph` (shared `core/DamBreakInit.*`
-  and the same four-call step sequence each frame), so what's on screen
-  is provably the same simulation, not a simplified stand-in
-- Mouse-orbit camera (left-drag to orbit, scroll to zoom), Esc to quit
-- Hand-rolled OpenGL 3.3 core function loader (`src/render/GLLoader.*`)
-  instead of GLAD/GLEW -- see `docs/architecture.md` for why that's the
-  right call here, not just a smaller dependency
-- Compile/link-verified end to end against a real, locally-built GLFW
-  (zero warnings under `-Wall -Wextra`); actually rendering a frame
-  needs a real display, which this project's own dev sandbox doesn't
-  have -- see `docs/architecture.md`, "Phase 1.5", for exactly what that
-  investigation found and how far verification could go without one
+## Overview
 
-See [`docs/architecture.md`](docs/architecture.md) for the module
-breakdown and, more importantly, for **three physics/math bugs found in
-the original project spec** (a mislabeled kernel normalization constant,
-a discontinuous kernel polynomial, and a dimensionally-invalid viscosity
-formula) plus two real numerical-stability failures found only by
-actually running the simulation (SPH tensile instability at the free
-surface, and a floor-impact force spike) -- what caused each one, and
-exactly what was changed and why.
+SPH is a Lagrangian, meshless method for simulating fluids: rather than
+discretizing space onto a fixed grid, the fluid is represented as particles
+carrying their own mass, density, and pressure, interacting with neighbors
+through a smoothing kernel. It underpins production VFX fluid tools and is
+standard in computational-physics and CFD coursework.
+
+AquaSPH implements the full pipeline from first principles — kernel
+interpolation, density estimation, equation of state, force computation, and
+time integration — with an emphasis on numerical correctness and measured
+performance rather than visual plausibility alone.
+
+## Results
+
+Dam-break scenario, Release build, 4-core machine. All runs stable
+(zero NaN, zero out-of-domain particles):
+
+| Particles | 1 thread | 2 threads | 4 threads | Speedup (4T) | Efficiency |
+|----------:|---------:|----------:|----------:|-------------:|-----------:|
+| 5,832  | 136.4 FPS | 252.6 FPS | 476.7 FPS | 3.49× | 87% |
+| 10,648 | 34.3 FPS  | 65.0 FPS  | 118.5 FPS | 3.46× | 86% |
+| 27,000 | 5.3 FPS   | 10.2 FPS  | 16.9 FPS  | 3.17× | 79% |
+| 50,653 | 1.4 FPS   | 2.6 FPS   | 4.1 FPS   | 3.03× | 76% |
+
+Parallel output is **bit-identical** across thread counts — verified by
+comparing density, position, and velocity statistics at 1, 2, and 4 threads
+across a 250-step run. Full methodology, the 8-thread oversubscription
+result, and an analysis of the declining efficiency at scale are in
+[`benchmarks/scaling_results.md`](benchmarks/scaling_results.md).
+
+## Features
+
+**Core solver**
+
+- Cubic spline (M4) smoothing kernel with analytic gradient and 3D-correct normalization
+- Linked-cell spatial hashing — O(N) neighbor search via a 27-cell stencil, vs. O(N²) all-pairs
+- SPH density estimation with Tait equation of state (weakly-compressible water)
+- Force computation: symmetric pressure gradient, SPH-discretized viscosity, gravity
+- Second-order predictor–corrector time integration
+- JSON-configurable simulation parameters with safe fallback to defaults
+- Dam-break scenario stable for 1,200+ timesteps at 8,000 particles
+
+**Parallelism**
+
+- Density, force, and integrator loops parallelized over particles with OpenMP
+- Per-thread neighbor buffers eliminate the data race a naive parallelization would introduce
+- Runtime thread control via `--threads N`
+- Determinism preserved: thread count affects wall-clock time, not results
+
+**Visualization**
+
+- Optional real-time viewer (`aquasph_view`) built on OpenGL 3.3 core + GLFW
+- Particles rendered as circular point sprites, colored by speed
+- Mouse-orbit camera with scroll zoom
+- Minimal hand-written GL function loader — no GLAD/GLEW dependency
+- Shares the solver and initializer with the headless binary, so the rendered
+  simulation is provably identical to the benchmarked one
+
+**Quality**
+
+- 20 GoogleTest unit tests covering kernel, EOS, neighbor search, and integrator
+- Continuous integration on Ubuntu and macOS: build, full test suite, and a
+  headless simulation smoke run on every push
+- Clean build under `-Wall -Wextra`
 
 ## Build
 
-Requires CMake 3.16+, a C++17 compiler, and OpenMP. `glm`,
-`nlohmann_json`, and GoogleTest are fetched automatically via CMake
-`FetchContent` if not already installed on your system.
+Requires CMake 3.16+, a C++17 compiler, and OpenMP. `glm`, `nlohmann_json`,
+and GoogleTest resolve via `find_package` if installed, and are fetched
+automatically through CMake `FetchContent` otherwise — no vendored sources.
 
 ```bash
 mkdir build && cd build
@@ -81,12 +98,13 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j4
 ```
 
-**macOS:** Apple Clang doesn't bundle OpenMP, so the plain command above
-fails `find_package(OpenMP REQUIRED)` even after `brew install libomp` --
-Homebrew's libomp is keg-only (not linked into the default search path),
-and CMake's OpenMP auto-detection doesn't reliably find its flags/library
-on its own. Verified fix (macOS 26 / Apple Silicon / AppleClang 21 /
-CMake 4.4.2):
+<details>
+<summary><b>macOS — additional OpenMP configuration</b></summary>
+
+Apple Clang does not bundle OpenMP. Homebrew's `libomp` is keg-only, so it is
+not placed on the default search path and CMake's `FindOpenMP` cannot locate
+its flags and library from an `OpenMP_ROOT` hint alone. Pass the cache
+variables explicitly:
 
 ```bash
 brew install libomp
@@ -98,90 +116,98 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 make -j4
 ```
 
-## Run
+Verified on Apple Silicon with AppleClang 21 and CMake 4.4.2.
+
+</details>
+
+## Usage
 
 ```bash
 ./aquasph                                   # default scenario (configs/default.json)
-./aquasph --particles 20000 --steps 500     # override particle count / step count
-./aquasph --threads 4                       # override OpenMP thread count (default: omp_get_max_threads())
+./aquasph --particles 20000 --steps 500     # override particle and step count
+./aquasph --threads 4                       # override OpenMP thread count
 ./aquasph --config ../configs/default.json  # explicit config path
-./aquasph --quiet                           # suppress periodic progress lines
+./aquasph --quiet                           # suppress periodic progress output
 ```
 
-Periodic output includes step timing, FPS, min/avg/max SPH density, and
-an out-of-bounds/NaN particle count; the run ends with a STABLE/UNSTABLE
-verdict (and a matching process exit code) based on whether any particle
-went non-finite or left the domain. The final summary also reports the
-active thread count. Run `nproc` to see how many physical cores your
-machine has -- that's generally the most effective `--threads` value,
-not necessarily the highest one available (see
-[`benchmarks/scaling_results.md`](benchmarks/scaling_results.md) for why
-oversubscribing past physical core count doesn't help).
+Periodic output reports step timing, throughput, min/avg/max SPH density, and
+a count of non-finite or out-of-domain particles. The run terminates with a
+`STABLE` / `UNSTABLE` verdict and a matching process exit code, making it
+directly usable as a CI check.
 
-## Visualize (Phase 1.5, optional)
+Thread counts above the machine's physical core count generally reduce
+throughput — see [`benchmarks/scaling_results.md`](benchmarks/scaling_results.md)
+for measurements.
+
+## Visualization
 
 ```bash
 mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_VISUALIZATION=ON ..
 make -j4
-./src/aquasph_view                      # default scenario, real-time render
-./src/aquasph_view --particles 20000    # denser block
+./aquasph_view                          # default scenario
+./aquasph_view --particles 20000        # denser particle block
 ```
 
-macOS: add the same OpenMP flags as the plain build below (see "macOS"
-note under Build) -- `aquasph_view` links `aquasph_core`, which needs
-OpenMP too.
+Left-drag orbits the camera, scroll zooms, `Esc` exits. Particles are colored
+by speed — deep blue at rest, white at maximum velocity, making the initial
+floor impact and residual turbulence immediately visible.
 
-Confirmed working end-to-end on macOS/Apple Silicon: window opens,
-particles render as speed-colored point sprites and update live,
-mouse-orbit/scroll-zoom/Esc all work as designed.
+The viewer is opt-in so that the headless solver and the entire test suite
+build on machines without GL development headers. Platform prerequisites are
+documented in [`docs/architecture.md`](docs/architecture.md).
 
-Left-click-drag to orbit the camera, scroll to zoom, Esc to quit.
-Particles are colored by speed (blue = still, white = fast-moving --
-e.g. the initial floor impact). On Debian/Ubuntu, GLFW's X11 backend
-needs a few dev packages this project's own build environment happened
-to be missing -- `docs/architecture.md` ("Phase 1.5") has the exact
-`apt install` line and the full investigation behind it.
-
-## Test
+## Testing
 
 ```bash
 cd build
 ctest --output-on-failure
 ```
 
-20/20 tests passing: kernel normalization (verified by numerical
-integration) and gradient symmetry, Tait EOS sanity checks, linked-cell
-neighbor-count correctness (interior vs. boundary cells), and integrator
-checks (parabolic free-fall trajectory, wall containment, energy bound).
+20 tests covering kernel normalization (validated against numerical
+integration), gradient symmetry and sign, Tait EOS behavior under compression
+and expansion, linked-cell neighbor correctness for interior and boundary
+cells, and integrator physics (parabolic free-fall, wall containment, bounded
+energy under repeated steps).
 
-## Project layout
+## Project structure
 
 ```
-src/core/       Particle struct, SPH kernel, density/EOS, forces, integrator, dam-break init
-src/spatial/    Linked-cell neighbor search
-src/io/         JSON config loading
-src/benchmark/  Timing utility
-src/render/     OpenGL loader, shader, camera, particle renderer (Phase 1.5)
-src/main.cpp        Headless benchmark entry point (-> aquasph)
-src/render_main.cpp  Real-time viewer entry point (-> aquasph_view, opt-in)
-configs/        Simulation parameters (JSON)
-tests/          GoogleTest unit tests
-benchmarks/     Measured throughput results
-docs/           Architecture + design-decision writeup
+src/core/            Particle model, SPH kernel, density/EOS, forces, integrator, scenario init
+src/spatial/         Linked-cell neighbor search
+src/io/              JSON configuration loading
+src/benchmark/       Timing instrumentation
+src/render/          GL loader, shader, camera, particle renderer
+src/main.cpp         Headless solver and benchmark entry point
+src/render_main.cpp  Real-time viewer entry point
+configs/             Simulation parameters (JSON)
+tests/               GoogleTest unit tests
+benchmarks/          Measured throughput and scaling results
+docs/                Architecture and design-decision documentation
 ```
+
+## Documentation
+
+[`docs/architecture.md`](docs/architecture.md) covers the module breakdown and
+data flow, the parallelization strategy and why one component remains serial,
+the AoS/SoA tradeoff, and — most substantially — a detailed account of five
+correctness problems resolved during development:
+
+1. A kernel normalization constant that was dimensionally 2D, applied in 3D
+2. A discontinuous piecewise kernel polynomial, caught by a monotonicity test
+3. A dimensionally ill-defined viscosity term, replaced with the standard
+   SPH velocity-Laplacian discretization
+4. A CFL violation of roughly 35× between the sound speed and timestep
+5. Two runtime instabilities — free-surface tensile instability and a
+   floor-impact force spike — diagnosed through instrumentation
 
 ## Roadmap
 
-- **Phase 1 (done):** OpenMP parallelization of the density/force/
-  integrator loops -- adaptive timestepping remains a V2 candidate
-- **Phase 1.5 (done):** OpenGL + GLFW real-time visualization
-  (`aquasph_view`) -- compile/link-verified against a real GLFW; actual
-  on-screen rendering needs a real display to check, which this
-  project's own dev sandbox doesn't have (see `docs/architecture.md`)
-- **V2:** CUDA acceleration, adaptive timestepping
+- CUDA acceleration of the density and force kernels
+- Adaptive timestepping driven by a CFL and max-force criterion
+- Boundary force particles to replace the current clamp-and-damp wall model
+- Structure-of-Arrays particle layout, pending profiler confirmation
 
 ## License
 
-MIT (or your preference -- add a LICENSE file before making the repo
-public if you want this enforced).
+Released under the [MIT License](LICENSE).

@@ -2,11 +2,10 @@
 // (GL/gl.h) on its own. This is GLFW's own documented way to pair with a
 // custom loader (this file) instead of a system OpenGL header -- see
 // https://www.glfw.org/docs/latest/build_guide.html#build_link_glad --
-// and matters everywhere, not just in a sandbox without GL dev headers:
 // glfwGetProcAddress is the whole point of using a loader instead of
 // linking function names directly, since letting glfw3.h's own GL/gl.h
-// include declare them first would just create the exact redefinition
-// this project is trying to avoid.
+// include declare them first would create the exact redefinition
+// this loader exists to avoid.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 

@@ -25,8 +25,8 @@ target_link_libraries(aquasph_core PUBLIC
 add_executable(aquasph main.cpp)
 target_link_libraries(aquasph PRIVATE aquasph_core)
 
-# Phase 1.5: a second, independent executable rather than folding the
-# renderer into `aquasph` -- see the comment above
+# A second, independent executable rather than folding the renderer into
+# `aquasph` -- see the comment above
 # AQUASPH_BUILD_VISUALIZATION in the root CMakeLists.txt for why. Both
 # executables link the same aquasph_core, so they run the identical
 # physics; only main.cpp/render_main.cpp (headless reporting vs. a

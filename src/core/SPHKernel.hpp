@@ -7,11 +7,11 @@ namespace aquasph {
 // smoothing radius h such that the kernel has *compact support at r = h*
 // (i.e. W(r,h) = 0 for r >= h; the piecewise break is at r = h/2).
 //
-// TWO BUGS IN THE ORIGINAL SPEC'S KERNEL FORMULA, FOUND BY ACTUALLY
-// VERIFYING THIS AGAINST UNIT TESTS (see tests/test_kernel.cpp) --
-// documented here since "why the cubic spline kernel" is an explicit
-// interview talking point for this project, and getting either of these
-// wrong live would be worse than not building this project at all.
+// TWO BUGS IN THE ORIGINAL SPEC'S KERNEL FORMULA, FOUND BY VERIFYING IT
+// AGAINST UNIT TESTS (see tests/test_kernel.cpp). Documented here because
+// either one silently invalidates every density and pressure the solver
+// produces: the simulation still runs, and the numbers still look like
+// numbers.
 //
 // Bug 1 -- wrong dimensionality. The spec quotes sigma = 10/(7*pi*h^2)
 // for "3D". That constant has units of 1/length^2 -- it's the 2D

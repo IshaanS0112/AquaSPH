@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
 #endif
 
     if (!args.quiet) {
-        std::cout << "AquaSPH -- Phase 0 physics + Phase 1 OpenMP parallelism\n";
+        std::cout << "AquaSPH -- SPH fluid solver (OpenMP)\n";
         std::cout << "Particles: " << particles.size()
                   << " | h=" << cfg.h << " | dt=" << cfg.dt
                   << " | c0=" << cfg.soundSpeed

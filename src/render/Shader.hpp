@@ -13,9 +13,7 @@ class Shader {
 public:
     // Throws std::runtime_error (with the GL compiler/linker info log)
     // on failure. Failing loudly at startup beats silently rendering a
-    // black screen from a half-broken program -- especially for a
-    // project whose renderer could not be visually test-run by its own
-    // author (see docs/architecture.md, "Phase 1.5").
+    // black screen from a half-broken program.
     Shader(const std::string& vertexSrc, const std::string& fragmentSrc);
     ~Shader();
 

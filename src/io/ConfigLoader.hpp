@@ -50,7 +50,7 @@ class ConfigLoader {
 public:
     // Loads a JSON config from `path`. Falls back to built-in defaults
     // (with a warning on stderr) if the file is missing or malformed --
-    // Phase 0 should never hard-crash just because a config path is wrong.
+    // The solver should never hard-crash just because a config path is wrong.
     static Config load(const std::string& path);
 };
 
