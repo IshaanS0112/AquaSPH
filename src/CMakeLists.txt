@@ -56,4 +56,10 @@ if(AQUASPH_BUILD_VISUALIZATION)
         render/OffscreenTarget.cpp
     )
     target_link_libraries(aquasph_view PRIVATE aquasph_core glfw)
+    # SYSTEM: stb_image_write.h is third-party and does not build clean
+    # under -Wall -Wextra. Marking it a system include keeps this
+    # project's own "-Wall -Wextra clean" claim about this project's own
+    # code, instead of quietly meaning "clean except for the 24 warnings
+    # we scroll past".
+    target_include_directories(aquasph_view SYSTEM PRIVATE ${STB_INCLUDE_DIR})
 endif()

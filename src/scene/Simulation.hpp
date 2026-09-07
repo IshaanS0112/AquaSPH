@@ -79,6 +79,12 @@ public:
     float boundarySpacing() const { return boundarySpacing_; }
     float smoothingRadius() const { return h_; }
     size_t boundaryCount() const { return boundaryCount_; }
+
+    // Boundary particles are laid out as [0, wallCount) domain walls then
+    // [wallCount, boundaryCount) obstacle shells. The renderer draws only
+    // the second range: drawing the walls would wrap the scene in an
+    // opaque box and hide the fluid entirely.
+    size_t wallCount() const { return wallCount_; }
     size_t capacity() const { return maxParticles_; }
     bool hitParticleCeiling() const { return hitCeiling_; }
 
@@ -108,6 +114,7 @@ private:
 
     std::vector<Particle> particles_;
     size_t boundaryCount_ = 0;
+    size_t wallCount_ = 0;
 
     // Rest position and owning obstacle for each boundary particle, index
     // -aligned with particles_[0 .. boundaryCount_). Owner -1 = domain wall.

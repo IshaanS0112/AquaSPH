@@ -28,6 +28,16 @@ public:
     void setMat4(const char* name, const float* mat4ColumnMajor) const;
     void setFloat(const char* name, float value) const;
     void setVec3(const char* name, float x, float y, float z) const;
+    void setInt(const char* name, int value) const;
+    void setVec2(const char* name, float x, float y) const;
+    void setVec4(const char* name, float x, float y, float z, float w) const;
+
+    // Binds `texture` to texture unit `unit` and points the sampler
+    // uniform `name` at it. One call instead of the three-step
+    // activate/bind/setInt dance repeated at every SSFR pass boundary,
+    // where getting the order wrong silently samples the previous pass's
+    // texture and produces a plausible-looking but wrong image.
+    void setTexture(const char* name, int unit, unsigned int texture) const;
 
 private:
     unsigned int program_ = 0;

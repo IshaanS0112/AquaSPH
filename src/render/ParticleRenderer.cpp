@@ -39,14 +39,16 @@ in float vSpeedNorm;
 out vec4 FragColor;
 
 void main() {
-    // Two-stop colormap: still water -> deep blue, fast-moving particles
-    // (e.g. the floor-impact spike documented in docs/architecture.md)
-    // -> white. Deliberately not a perceptually-uniform colormap
-    // (viridis etc.) -- overkill for a debug/demo visualizer where the
-    // only thing that matters is "which particles are moving fast".
-    vec3 slow = vec3(0.10, 0.25, 0.85);
-    vec3 fast = vec3(1.00, 1.00, 1.00);
-    vec3 color = mix(slow, fast, clamp(vSpeedNorm, 0.0, 1.0));
+    // Three-stop ramp within the project's one palette: deep teal at
+    // rest, through the fluid's own cyan, to a pale highlight at the
+    // scenario's reference speed. Kept in the same hue family as the
+    // surface renderer so a points frame and a surface frame of the same
+    // scenario read as the same fluid rather than two different systems.
+    vec3 slow = vec3(0.055, 0.180, 0.235);
+    vec3 mid  = vec3(0.180, 0.560, 0.640);
+    vec3 fast = vec3(0.850, 0.960, 0.980);
+    float t = clamp(vSpeedNorm, 0.0, 1.0);
+    vec3 color = t < 0.5 ? mix(slow, mid, t * 2.0) : mix(mid, fast, (t - 0.5) * 2.0);
 
     // GL_POINTS defaults to a square sprite; discard the corners so
     // particles read as circles/droplets instead of little tiles.
@@ -62,21 +64,26 @@ void main() {
 } // namespace
 
 ParticleRenderer::ParticleRenderer(size_t maxParticles)
-    : maxParticles_(maxParticles), shader_(kVertexSrc, kFragmentSrc) {
-    cpuBuffer_.reserve(maxParticles_ * 4);
-
+    : shader_(kVertexSrc, kFragmentSrc) {
     glGenVertexArrays(1, &vao_);
     glGenBuffers(1, &vbo_);
+    ensureCapacity(maxParticles);
+}
+
+// GROWS ON DEMAND. v1 allocated once at "the run's fixed particle count"
+// because the count could not change; emitters made that false. The
+// buffer is reallocated with headroom rather than exactly, so a scenario
+// that adds a layer of particles every few steps does not stall the
+// pipeline on a fresh allocation every few steps.
+void ParticleRenderer::ensureCapacity(size_t count) {
+    if (count <= capacity_) return;
+    capacity_ = std::max<size_t>(count * 2, 4096);
+    cpuBuffer_.reserve(capacity_ * 4);
 
     glBindVertexArray(vao_);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-
-    // Allocated once at the run's fixed particle count; every later
-    // frame reuses this same GPU allocation via glBufferSubData rather
-    // than reallocating (glBufferData) every frame -- particle count
-    // never changes mid-run, so there's nothing to grow into.
     glBufferData(GL_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(maxParticles_ * 4 * sizeof(float)),
+                 static_cast<GLsizeiptr>(capacity_ * 4 * sizeof(float)),
                  nullptr, GL_DYNAMIC_DRAW);
 
     const GLsizei stride = static_cast<GLsizei>(4 * sizeof(float));
@@ -97,12 +104,13 @@ ParticleRenderer::~ParticleRenderer() {
 }
 
 void ParticleRenderer::updateParticles(const std::vector<Particle>& particles,
-                                        float speedForFullColor) {
-    particleCount_ = std::min(particles.size(), maxParticles_);
+                                        size_t firstFluid, float referenceSpeed) {
+    particleCount_ = particles.size() > firstFluid ? particles.size() - firstFluid : 0;
+    ensureCapacity(particleCount_);
     cpuBuffer_.clear();
 
-    const float denom = speedForFullColor > 1e-6f ? speedForFullColor : 1.0f;
-    for (size_t i = 0; i < particleCount_; ++i) {
+    const float denom = referenceSpeed > 1e-6f ? referenceSpeed : 1.0f;
+    for (size_t i = firstFluid; i < particles.size(); ++i) {
         const Particle& p = particles[i];
         cpuBuffer_.push_back(p.position.x);
         cpuBuffer_.push_back(p.position.y);
@@ -110,6 +118,7 @@ void ParticleRenderer::updateParticles(const std::vector<Particle>& particles,
         const float speed = glm::length(p.velocity);
         cpuBuffer_.push_back(std::clamp(speed / denom, 0.0f, 1.0f));
     }
+    if (cpuBuffer_.empty()) return;
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo_);
     glBufferSubData(GL_ARRAY_BUFFER, 0,

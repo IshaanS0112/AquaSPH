@@ -9,11 +9,29 @@ namespace {
 constexpr float kMinPitchDeg = -89.0f;
 constexpr float kMaxPitchDeg = 89.0f;
 constexpr float kMinDistance = 0.1f;
-constexpr float kMaxDistance = 50.0f;
+constexpr float kMaxDistance = 500.0f;
 }
 
-OrbitCamera::OrbitCamera(const glm::vec3& target, float distance)
-    : target_(target), distance_(std::clamp(distance, kMinDistance, kMaxDistance)) {}
+OrbitCamera::OrbitCamera(const glm::vec3& target, float distance,
+                          float yawDeg, float pitchDeg, float fovDeg)
+    : target_(target), distance_(std::clamp(distance, kMinDistance, kMaxDistance)),
+      yawDeg_(yawDeg), pitchDeg_(std::clamp(pitchDeg, kMinPitchDeg, kMaxPitchDeg)),
+      fovDeg_(fovDeg) {}
+
+void OrbitCamera::setYaw(float yawDeg) { yawDeg_ = yawDeg; }
+
+void OrbitCamera::setClipPlanes(float nearPlane, float farPlane) {
+    near_ = std::max(nearPlane, 1.0e-4f);
+    far_ = std::max(farPlane, near_ * 10.0f);
+}
+
+glm::vec3 OrbitCamera::position() const {
+    const float yaw = glm::radians(yawDeg_);
+    const float pitch = glm::radians(pitchDeg_);
+    return target_ + glm::vec3(distance_ * std::cos(pitch) * std::sin(yaw),
+                                distance_ * std::sin(pitch),
+                                distance_ * std::cos(pitch) * std::cos(yaw));
+}
 
 void OrbitCamera::orbit(float deltaYawDeg, float deltaPitchDeg) {
     yawDeg_ += deltaYawDeg;
@@ -29,21 +47,12 @@ void OrbitCamera::zoom(float deltaDistance) {
 }
 
 glm::mat4 OrbitCamera::viewMatrix() const {
-    const float yaw = glm::radians(yawDeg_);
-    const float pitch = glm::radians(pitchDeg_);
-
     // Standard spherical-to-Cartesian eye position around target_.
-    const glm::vec3 offset(
-        distance_ * std::cos(pitch) * std::sin(yaw),
-        distance_ * std::sin(pitch),
-        distance_ * std::cos(pitch) * std::cos(yaw));
-
-    const glm::vec3 eye = target_ + offset;
-    return glm::lookAt(eye, target_, glm::vec3(0.0f, 1.0f, 0.0f));
+    return glm::lookAt(position(), target_, glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
 glm::mat4 OrbitCamera::projectionMatrix(float aspectRatio) const {
-    return glm::perspective(glm::radians(45.0f), aspectRatio, 0.01f, 100.0f);
+    return glm::perspective(glm::radians(fovDeg_), aspectRatio, near_, far_);
 }
 
 } // namespace aquasph

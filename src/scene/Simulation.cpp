@@ -122,6 +122,8 @@ void Simulation::buildBoundary() {
         boundaryOwner_.push_back(-1);
     }
 
+    wallCount_ = particles_.size();
+
     for (size_t oi = 0; oi < scenario_.obstacles.size(); ++oi) {
         std::vector<glm::vec3> shell;
         const int layers = std::max(

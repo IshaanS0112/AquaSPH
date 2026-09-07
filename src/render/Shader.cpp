@@ -86,4 +86,23 @@ void Shader::setVec3(const char* name, float x, float y, float z) const {
     glUniform3f(loc, x, y, z);
 }
 
+
+void Shader::setInt(const char* name, int value) const {
+    glUniform1i(glGetUniformLocation(program_, name), value);
+}
+
+void Shader::setVec2(const char* name, float x, float y) const {
+    glUniform2f(glGetUniformLocation(program_, name), x, y);
+}
+
+void Shader::setVec4(const char* name, float x, float y, float z, float w) const {
+    glUniform4f(glGetUniformLocation(program_, name), x, y, z, w);
+}
+
+void Shader::setTexture(const char* name, int unit, unsigned int texture) const {
+    glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(unit));
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glUniform1i(glGetUniformLocation(program_, name), unit);
+}
+
 } // namespace aquasph

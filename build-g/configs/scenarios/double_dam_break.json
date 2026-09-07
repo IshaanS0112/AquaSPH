@@ -1,0 +1,34 @@
+{
+  "name": "double_dam_break",
+  "tier": 1,
+  "description": "Two opposing water columns collapse and collide, throwing a vertical central jet.",
+  "approximation": "Perfect left-right symmetry in the initial condition; the simulated jet is therefore more symmetric than any physical experiment would be.",
+
+  "domain": {
+    "min": [0.0, 0.0, 0.0],
+    "max": [1.6, 0.8, 0.3],
+    "faces": { "y_max": "open" },
+    "boundary_particles": true,
+    "boundary_layers": 2
+  },
+
+  "materials": [
+    { "name": "water", "rest_density": 1000.0, "sound_speed": 45.0, "gamma": 7.0,
+      "viscosity": 5.0, "surface_tension": 0.0, "absorption": [0.55, 0.16, 0.09] }
+  ],
+
+  "fluid_regions": [
+    { "type": "column", "material": "water", "base": [0.0, 0.0, 0.0], "size": [0.25, 0.5, 0.3] },
+    { "type": "column", "material": "water", "base": [1.35, 0.0, 0.0], "size": [0.25, 0.5, 0.3] }
+  ],
+
+  "numerics": { "h": 0.025, "spacing_ratio": 0.5, "xsph_epsilon": 0.5, "dt_max": 0.001 },
+  "duration": { "simulated_time": 1.4, "output_interval": 0.01 },
+
+  "metrics": {
+    "probes": [ { "name": "centre_jet", "position": [0.8, 0.0, 0.15], "radius": 0.06 } ]
+  },
+
+  "camera": { "target": [0.8, 0.25, 0.15], "distance": 2.8, "yaw_deg": 38.0, "pitch_deg": 20.0 },
+  "render": { "mode": "surface", "reference_speed": 4.0, "palette": "teal" }
+}

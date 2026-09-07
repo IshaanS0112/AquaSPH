@@ -102,6 +102,22 @@ if(AQUASPH_BUILD_VISUALIZATION)
     set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(glfw)
   endif()
+
+  # stb_image_write: PNG encoding for --record, and nothing else. Public
+  # domain, header-only, no build step -- the header is compiled directly
+  # into render/FrameCapture.cpp. See the dependency note at the top of
+  # render/FrameCapture.hpp for what was rejected and why. Visualization
+  # only: the headless solver and every test target link none of this.
+  find_path(STB_INCLUDE_DIR stb_image_write.h)
+  if(NOT STB_INCLUDE_DIR)
+    message(STATUS "stb_image_write.h not found on the system; fetching stb via FetchContent")
+    FetchContent_Declare(stb
+      GIT_REPOSITORY https://github.com/nothings/stb.git
+      GIT_TAG f0569113c93ad095470c54bf34a17b36646bbbb5
+      GIT_SHALLOW FALSE)
+    FetchContent_MakeAvailable(stb)
+    set(STB_INCLUDE_DIR ${stb_SOURCE_DIR})
+  endif()
 endif()
 
 add_subdirectory(src)
