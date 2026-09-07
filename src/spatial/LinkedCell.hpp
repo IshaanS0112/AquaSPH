@@ -73,7 +73,6 @@ private:
     std::vector<int> indices_;     // one entry per particle, grouped by cell
     std::vector<int> cellOf_;      // scratch: each particle's flat cell index
     std::vector<int> cursor_;      // scratch: per-cell write position
-    int count_ = 0;                // particles in the current build
 
     glm::ivec3 cellCoords(const glm::vec3& pos) const;
     int flatten(const glm::ivec3& c) const;

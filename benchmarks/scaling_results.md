@@ -1,118 +1,206 @@
 # AquaSPH -- Benchmark Results
 
-All numbers below are measured, not estimated -- captured from real runs
-of `./aquasph --particles N --steps S --threads T --quiet` in Release
-mode, same build, same 4-core machine (see hardware note below), same
-session, immediately after a clean rebuild.
+All numbers below are **measured, not estimated** -- captured from real
+runs of `scripts/benchmark.sh` in Release mode, same build, same machine,
+same session, immediately after a clean rebuild. Reproduce with:
 
-## Multi-thread results
+```bash
+scripts/benchmark.sh 40 dam_break
+```
 
-| Particle Count | 1 Thread | 2 Threads | 4 Threads | 8 Threads | Speedup (4T vs 1T) |
-|---|---|---|---|---|---|
-| 5,832  | 136.43 FPS (7.330 ms/step)  | 252.55 FPS (3.960 ms/step) | 476.74 FPS (2.098 ms/step) | 320.74 FPS (3.118 ms/step) | 3.49x |
-| 10,648 | 34.30 FPS (29.157 ms/step)  | 64.95 FPS (15.397 ms/step) | 118.51 FPS (8.438 ms/step) | 111.39 FPS (8.978 ms/step) | 3.46x |
-| 27,000 | 5.32 FPS (188.024 ms/step)  | 10.19 FPS (98.137 ms/step) | 16.86 FPS (59.330 ms/step) | 16.35 FPS (61.173 ms/step) | 3.17x |
-| 50,653 | 1.36 FPS (734.266 ms/step)  | 2.64 FPS (378.374 ms/step) | 4.13 FPS (241.929 ms/step) | 4.08 FPS (245.154 ms/step) | 3.03x |
+**Machine:** 4 physical cores (`nproc` = 4), GCC 13.3, `-O3`, Linux.
+Timings are the `--profile` total, which is the sum of the exclusive
+per-stage times and excludes process start-up and metrics output.
 
-(Particle counts aren't exactly 5k/10k/25k/50k because
-`--particles N` targets N via a cubic lattice, the actual count
-is whichever perfect cube comes closest, and the program always prints
-the real count it used.)
+---
 
-## Hardware: 4 physical cores, not 8
+## Throughput and scaling (v2, `dam_break`)
 
-The benchmark machine reports `nproc` = 4. That's why the table above has an
-8-thread column but it's never the fastest one: 8 threads on 4 physical
-cores is oversubscription, not parallelism -- the OS is now
-time-slicing 8 software threads across 4 hardware cores, which adds
-scheduling/context-switch overhead without adding any actual compute
-capacity. The data shows exactly that: 8T is flat-to-worse than 4T at
-every particle count tested, most visibly at 5,832 particles (320.74
-FPS at 8T vs 476.74 FPS at 4T -- worse by 33%). This is expected,
-textbook behavior, not a bug -- reported honestly rather than only
-showing the flattering columns. On real 8-core hardware, expect the
-8-thread column to look like the 4-thread column does here (further
-speedup, not regression) -- reproduce with `nproc` on your own machine
-and adjust `--threads` accordingly.
+Particle counts follow from the scenario's geometry and the quality
+preset; `--quality` multiplies both `h` and the particle spacing by
+1.8 / 1.0 / 0.55, so the neighbour count per particle is identical across
+rows and only the sampling density changes.
 
-## Parallel efficiency: 87% at 5.8k particles, down to 76% at 50.6k
+| Quality | Fluid | Boundary | Total | 1 thread | 2 threads | 4 threads | 8 threads | Speedup (4T) | Efficiency |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `low`    | 3,864   | 13,176 | 17,040  | 18.62 ms | 9.70 ms  | **5.77 ms**  | 10.27 ms | 3.23x | 81% |
+| `medium` | 21,525  | 39,314 | 60,839  | 107.68 ms | 55.32 ms | **30.88 ms** | 35.10 ms | 3.49x | 87% |
+| `high`   | 118,844 | 98,892 | 217,736 | 587.74 ms | 313.36 ms | **181.76 ms** | 304.90 ms | 3.23x | 81% |
 
-Speedup at 4 threads (vs. 1 thread): 3.49x, 3.46x, 3.17x, 3.03x, for
-5,832 / 10,648 / 27,000 / 50,653 particles respectively -- efficiency
-(speedup / 4) declining from ~87% to ~76% as N grows. That's the
-*opposite* of the usual "parallel efficiency improves at scale" pattern
-(where fixed per-step overhead like OpenMP's parallel-region spawn/join
-amortizes better over more work). A plausible explanation: this project
-uses an AoS particle layout (see `docs/architecture.md`), so each thread
-pulls position **and** velocity **and** force **and** density **and**
-pressure **and** mass into cache for every particle touched, even when a
-given loop only needs two or three of those fields. As N grows past
-cache capacity, four threads are competing harder for the same memory
-bandwidth, which would show up exactly as declining efficiency at larger
-N -- consistent with what's measured, though this is a hypothesis, not
-something confirmed with an actual profiler (`perf stat`, cache-miss
-counters). If it holds up, it's a concrete, measured reason to revisit
-the AoS-vs-SoA tradeoff in a later phase, rather than a vague "SoA is
-usually faster" argument.
+In steps per second: 173 / 32 / 5.5 at four threads.
+
+**Boundary particles are the majority of the count at low resolution and
+about 45% at high.** That is inherent to a thin tank: boundary count
+scales with surface area over spacing squared, fluid count with volume
+over spacing cubed, so the ratio improves as resolution rises. They are
+cheap per particle -- they are skipped as loop subjects entirely, and the
+loops start at the first fluid index rather than walking past them -- but
+they are not free: they enlarge near-wall neighbour lists and the grid.
+
+**8 threads on 4 physical cores is oversubscription, not parallelism**, and
+the data shows it: worse than 4T at every resolution. This is expected,
+textbook behaviour, reported rather than omitted. On real 8-core hardware,
+expect the 8-thread column to look like the 4-thread column does here.
+
+### Efficiency no longer declines monotonically with N
+
+v1 measured 87% -> 76% efficiency as particle count grew, and attributed
+it to AoS cache pressure. v2 measures 81% / 87% / 81%. The middle of the
+range is now the best, not the worst. Some of what v1 attributed to the
+particle layout was the neighbour structure's pointer chasing, removed by
+the CSR restructure below. The AoS-vs-SoA question is therefore more open
+than v1 concluded -- and still should not be settled without an actual
+cache-miss profiler.
+
+---
+
+## Where the time goes: per-stage profile
+
+`--profile` reports **exclusive** wall time per pipeline stage.
+`dam_break --quality high`, 217,736 particles (118,844 fluid + 98,892
+boundary), 40 steps:
+
+| stage | 1 thread | share | 4 threads | share |
+|---|---:|---:|---:|---:|
+| linked-cell build | 6.60 ms | 1.1% | 3.70 ms | 2.1% |
+| boundary volumes | 0.00 ms | 0.0% | 0.00 ms | 0.0% |
+| density + pressure | 121.78 ms | 20.8% | 32.93 ms | 18.7% |
+| surface normals | 0.00 ms | 0.0% | 0.00 ms | 0.0% |
+| **forces (x2 per step)** | **445.47 ms** | **76.0%** | **134.50 ms** | **76.4%** |
+| timestep control | 4.54 ms | 0.8% | 1.26 ms | 0.7% |
+| integration | 4.39 ms | 0.7% | 1.81 ms | 1.0% |
+| emitters + sinks | 1.19 ms | 0.2% | 1.04 ms | 0.6% |
+| statistics | 2.24 ms | 0.4% | 0.85 ms | 0.5% |
+| **total** | **586.21 ms** | | **176.08 ms** | |
+
+Reading it:
+
+- **Forces dominate at 76%**, and are charged for *both* evaluations per
+  step (the predictor-corrector re-evaluates at the half step). Density is
+  the same neighbour traversal doing less work per pair.
+- **`surface normals: 0.000 ms`** is not a rounding artefact. The pass
+  short-circuits when no material in the scenario has a non-zero
+  surface-tension coefficient, so scenarios that do not need it pay
+  literally nothing. Likewise `boundary volumes`, which is computed once
+  at construction unless an obstacle is actually moving.
+- **The serial fraction is small.** `linked-cell build` is the only stage
+  with a serial component of any size, at 2.1% of a four-thread step.
+
+### The profile was wrong first, and the wrong version was actionable
+
+The first version of this table reported **integration at 27% of step
+time** and summed to 260 ms/step against a measured 189 ms/step wall
+clock. The integrator re-evaluates forces through a callback, so the stage
+timers nested and the mid-step force evaluation was charged to both
+columns. Worth recording because a 27% integration cost is exactly the
+kind of number that sends an afternoon of optimisation effort in the wrong
+direction; the real figure is 1%.
+
+---
+
+## What was optimised, and what was measured
+
+Three changes, in the order the profile surfaced them. Same machine, same
+scenario, 217,736 particles, 4 threads.
+
+| stage | before | after |
+|---|---:|---:|
+| linked-cell build | 8.22 ms | **3.70 ms** |
+| density + pressure | 36.90 ms | **32.93 ms** |
+| forces | 140.43 ms | **134.50 ms** |
+| integration | 1.69 ms (after unnesting) | **1.81 ms** |
+| **total** | **190.22 ms** | **176.08 ms** |
+
+Speedup at 4 threads vs 1 improved from 3.19x to 3.33x on this scenario.
+
+**1. Integrator scratch buffers.** Two `std::vector<glm::vec3>` of the
+full particle count were being allocated, zeroed and freed on *every
+step* -- about 5 MB per step at this size, and more than half of it for
+boundary indices the loops never touch. They are now reused members sized
+to the fluid range.
+
+**2. Linked cell: CSR instead of a bucket per cell.** `docs/architecture.md`
+predicted, before any of this was threaded, that `build()` would become
+the bottleneck once the O(N x neighbours) loops sped up. **The prediction
+was directionally right and quantitatively not worth acting on**: build
+was 4.3% of step time, so parallelising it for its own sake caps out at a
+~3% total gain.
+
+What the profile actually showed is that `vector<vector<int>>` made every
+neighbour query dereference 27 independent heap pointers -- inside the
+density and force loops, which are 95% of step time. The buckets are now
+two flat arrays (a per-cell prefix sum plus one index array), built by
+counting sort with nothing allocated per step, and the three x-adjacent
+cells are contiguous in the flat index so a 27-cell gather is nine
+contiguous copies rather than 27 pointer chases. That is why density and
+forces got faster as well as build.
+
+**The scatter pass is still deliberately serial.** The textbook parallel
+counting sort claims slots with an atomic fetch-add, which is correct but
+leaves each cell's contents in thread-scheduling order -- and a cell's
+order *is* the summation order of every neighbour loop that later reads
+it. Float addition is not associative, so that would silently make every
+density and force sum thread-count-dependent. The pass is one array write
+per particle with no allocation; keeping it ordered costs far less than
+the guarantee is worth.
+
+**3. Loop ranges skip boundary particles.** With a static schedule and
+more boundary particles than fluid, the first thread's share was almost
+entirely no-op iterations. Every parallel loop now starts at the first
+fluid index.
+
+---
 
 ## Determinism check (the correctness bar for parallelization)
 
 FPS differing by thread count is expected and desired. What must *not*
-differ is the physics: parallelizing `computeDensityPressure` and
-`computeForces` over particles is only safe because each iteration
-writes exactly one particle's own fields and reads (without mutating)
-its neighbors' -- see the comments in `src/core/DensityPressure.cpp` and
-`src/core/ForceCompute.cpp` for the full reasoning, including the
-data-race that a naive parallelization would have hit (a single shared
-`neighbors` buffer reused across iterations, safe only in the single-threaded case).
+differ is the physics.
 
-Verified directly: ran the same 8,000-particle dam-break scenario at 1,
-2, and 4 threads for 250 steps, comparing density min/avg/max, minimum
-Y-position, and max particle speed at every 50-step checkpoint. All
-values matched exactly across all three thread counts at every
-checkpoint -- not just "close," identical. This is expected given the
-parallelization only threads the *outer* per-particle loop; the *inner*
-per-neighbor summation for any given particle still runs sequentially
-within a single thread regardless of how many threads exist overall, so
-there's no floating-point reassociation from parallelism -- each
-particle's result is computed via the exact same instruction sequence
-no matter the thread count.
+v1 verified this by comparing reported statistics at checkpoints. **v2's
+bar is higher**, because v2 introduced two things that could break it
+invisibly: an adaptive timestep (a global reduction that feeds back into
+every later step) and a particle count that changes during the run.
 
-## What's still serial, and why
+`tests/test_determinism.cpp` and `tests/test_dynamic_particles.cpp`
+therefore assert **bit-identical particle state by `memcmp`** after 40
+steps at **1, 2, 4 and 8 threads** -- with surface tension, XSPH, boundary
+particles, emitters and sinks all active. 8 is included deliberately even
+on a 4-core machine: oversubscription changes scheduling, which is exactly
+what a fragile reduction is sensitive to. The dt sequence is compared
+step-by-step as well, since a diverging dt would be the first symptom.
 
-`LinkedCell::build()` is not parallelized. Multiple threads could land
-particles in the same cell and call `push_back()` on its bucket
-concurrently -- a real data race (concurrent mutation of a
-`std::vector`, plus the possibility of one thread's push_back()
-reallocating the buffer out from under another thread's write).
-Parallelizing it correctly means restructuring to a two-pass
-counting-sort (parallel atomic per-cell counts, a prefix sum, then a
-parallel scatter using atomic fetch-add for each particle's slot) --
-real additional work, and not the highest-value target: `build()` is
-O(N) with cheap per-particle work, while the two parallelized loops are
-O(N * neighbors) with far more work per particle. Worth revisiting if
-profiling ever shows `build()` has become the bottleneck now that the
-O(N*neighbors) loops are faster (Amdahl's law: as the parallel parts
-speed up, whatever's still serial becomes a larger share of total time).
+Three properties make it hold, each chosen against an easier alternative:
 
-## How to reproduce
+1. Parallel loops write only their own particle -- no reduction to
+   reassociate.
+2. Global reductions use fixed-size chunks independent of thread count
+   (`core/ParallelReduce.hpp`), for sums as well as maxima.
+3. Particle ordering is a pure function of scenario and step count:
+   ordered emission, stable compaction, and the ordered linked-cell
+   scatter above.
 
-```bash
-cd build
-./aquasph --particles 5000  --steps 150 --threads 1 --quiet
-./aquasph --particles 5000  --steps 150 --threads 4 --quiet
-# ...repeat for 10000/25000/50000 and other thread counts.
-# nproc tells you your machine's physical core count -- that's the
-# thread count where you should expect the best result, not necessarily
-# the highest number you can pass.
-```
+See `docs/experiments.md` for what the guarantee explicitly does *not*
+cover (different compilers, flags, or architectures).
+
+---
+
+## Scenario cost
+
+Every scenario at `--quality low`, four threads, full duration, from
+`scripts/run_scenarios.sh low`. Useful for picking a resolution: multiply
+by roughly 6 for `medium` and 35 for `high`.
+
+Run `scripts/run_scenarios.sh medium results/medium` for the figures on
+your own machine; the table is regenerated by that script rather than
+hand-maintained.
+
+---
 
 ## Stability validation
 
-Separately from the throughput sweep above, the default scenario
-(`configs/default.json`, ~8,000-9,300 particles depending on exact
-lattice rounding) was run for 1,200+ timesteps at both 1 and 4 threads
-and stayed STABLE throughout (zero NaN / zero out-of-domain particles at
-every checkpoint, identical physics at both thread counts per the
-determinism check above). See `docs/architecture.md` for the full
-stability-tuning story.
+Every scenario in `configs/scenarios/` runs to completion and reports
+`STABLE` -- zero non-finite particles and zero particles outside a
+non-open domain face -- at every quality preset tested.
+`scripts/run_scenarios.sh` exits non-zero if any does not, so it works
+directly as a CI gate. Quantitative comparison against analytical results
+is in [`docs/validation.md`](../docs/validation.md).

@@ -23,10 +23,11 @@ jobs:
         run: brew install libomp
 
       - name: Configure
-        # Visualization stays OFF: aquasph_view needs the X11 development
-        # headers that GLFW's own CMake requires at configure time, and the
+        # Visualization stays OFF here on purpose, and the "GL-free build"
+        # step below is what proves that is a real property rather than a
+        # default nobody checks: aquasph_view needs the X11 development
+        # headers GLFW's own CMake requires at configure time, and the
         # headless binary plus every test target links neither GL nor GLFW.
-        # See the long comment in CMakeLists.txt for the full investigation.
         #
         # macOS needs explicit OpenMP flags, not just an OpenMP_ROOT hint:
         # Homebrew's libomp is keg-only, and CMake's FindOpenMP couldn't
@@ -46,14 +47,72 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Test
+      - name: Unit tests
+        # Includes the bit-identical-across-1/2/4/8-threads determinism
+        # tests and the boundary-leakage test, which are the two properties
+        # most likely to be broken silently by an otherwise-reasonable
+        # change.
         run: ctest --test-dir build --output-on-failure
 
-      - name: Headless smoke run
-        # A simulation that builds, passes its unit tests, and then diverges on
-        # the first real timestep is still broken. This runs the actual binary
-        # against the committed config for a short, cheap simulation. Flags match
-        # parseArgs() in src/main.cpp; configs/ is copied next to the binary by
-        # the top-level CMakeLists.txt, so no --config is needed.
-        working-directory: build
-        run: ./aquasph --particles 500 --steps 50 --threads 2
+      - name: GL-free headless build
+        # The claim is that the solver never depends on the renderer. This
+        # asserts it mechanically rather than by convention: if any core or
+        # scene source ever includes a GL header or references a GLFW
+        # symbol, `nm` finds it here.
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          if ldd build/aquasph | grep -Eiq 'libGL|libglfw|libX11'; then
+            echo "FAIL: the headless binary links a graphics library." >&2
+            ldd build/aquasph >&2
+            exit 1
+          fi
+          if nm -uC build/aquasph | grep -Eiq 'glfw|glCreateProgram'; then
+            echo "FAIL: the headless binary references GL/GLFW symbols." >&2
+            exit 1
+          fi
+          echo "OK: aquasph links no graphics library and references no GL symbols."
+
+      - name: Scenario smoke tests
+        # A solver that builds, passes its unit tests, and then diverges on
+        # a real scenario is still broken. This runs every scenario in the
+        # library for a short slice of simulated time at the development
+        # resolution and fails if any reports UNSTABLE.
+        #
+        # Short --time, not short --steps: with an adaptive timestep, a
+        # fixed step count covers a different amount of physics at each
+        # resolution, so a wall-clock budget expressed in steps would
+        # silently test less as the solver got faster.
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -e
+          fail=0
+          for f in configs/scenarios/*.json; do
+            name=$(basename "$f" .json)
+            printf '%-24s' "$name"
+            if ./build/aquasph --scenario "$name" --quality low --time 0.15 \
+                 --threads 2 --metrics "/tmp/$name.json" --quiet > "/tmp/$name.log" 2>&1; then
+              echo "STABLE"
+            else
+              echo "UNSTABLE"
+              tail -n 20 "/tmp/$name.log"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Metrics are valid JSON and carry their provenance
+        # The metrics file is what makes a scenario an experiment rather
+        # than an animation, so it is checked like an interface.
+        if: runner.os == 'Linux'
+        run: python3 scripts/check_metrics.py '/tmp/*.json'
+
+      - name: Warning-free build
+        # -Wall -Wextra are on for the whole project; this makes a new
+        # warning a failure rather than something to scroll past.
+        if: runner.os == 'Linux'
+        run: |
+          rm -rf build-warn
+          cmake -B build-warn -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=OFF \
+                -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+          cmake --build build-warn --parallel

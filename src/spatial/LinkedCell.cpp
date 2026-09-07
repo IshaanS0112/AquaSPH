@@ -81,7 +81,6 @@ void LinkedCell::build(const std::vector<Particle>& particles) {
         indices_[static_cast<size_t>(cursor_[static_cast<size_t>(cellOf_[static_cast<size_t>(i)])]++)] = i;
     }
 
-    count_ = n;
 }
 
 void LinkedCell::getNeighbors(int particleIdx, const std::vector<Particle>& particles,

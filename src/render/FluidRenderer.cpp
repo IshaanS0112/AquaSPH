@@ -437,8 +437,13 @@ void FluidRenderer::render(const OffscreenTarget& scene, OffscreenTarget& output
                             const LightingSpec& lighting, const Params& params) {
     const float pointScale =
         static_cast<float>(height_) / (2.0f * std::tan(fovYRadians * 0.5f));
-    GLint maxPointSizeRange = 255;
-    const float maxPointSize = static_cast<float>(maxPointSizeRange);
+    // gl_PointSize has an implementation-defined ceiling. 255 is the
+    // conservative floor across GL 3.3 core implementations; clamping to
+    // it means a camera very close to the fluid under-sizes the impostors
+    // and can open holes, rather than the driver silently clamping to
+    // something smaller. Documented in docs/rendering.md under known
+    // limitations, with "pull the camera back" as the remedy.
+    constexpr float maxPointSize = 255.0f;
     const glm::vec2 texel(1.0f / static_cast<float>(width_), 1.0f / static_cast<float>(height_));
 
     // ---- Pass 1: depth ----

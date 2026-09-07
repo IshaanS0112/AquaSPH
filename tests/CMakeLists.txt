@@ -25,6 +25,7 @@ set(AQUASPH_TEST_SOURCES
     test_boundary.cpp
     test_scene.cpp
     test_dynamic_particles.cpp
+    test_extensibility.cpp
 )
 
 add_executable(aquasph_tests ${AQUASPH_TEST_SOURCES})
