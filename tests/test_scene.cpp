@@ -311,6 +311,44 @@ TEST(ScenarioLoaderTest, RoundTripsACompositionOfPrimitives) {
     ASSERT_EQ(s.metrics.probes.size(), 1u);
 }
 
+// The loader's documented contract is that it reports and falls back
+// rather than throwing. Until this was added it did not honour that:
+// nlohmann's accessors throw when a field holds the wrong type, nothing
+// caught it, and a scenario file with one mistyped field aborted the
+// process with a bare `terminate called after throwing` -- the least
+// useful possible response to a typo.
+TEST(ScenarioLoaderTest, MistypedFieldIsReportedRatherThanThrown) {
+    const char* kBad = R"JSON({
+      "name": "bad_scenario",
+      "domain": { "min": [0, 0, 0], "max": "not an array" },
+      "numerics": { "h": "definitely not a number" }
+    })JSON";
+    const std::string path = "unit_test_bad_scenario.json";
+    { std::ofstream f(path); f << kBad; }
+
+    Scenario s;
+    std::string err;
+    const bool ok = ScenarioLoader::loadFile(path, s, err);
+    std::remove(path.c_str());
+
+    EXPECT_FALSE(ok);
+    EXPECT_NE(err.find("bad_scenario"), std::string::npos)
+        << "the error should name the file it came from; got: " << err;
+}
+
+TEST(ScenarioLoaderTest, MalformedJsonIsReportedRatherThanThrown) {
+    const std::string path = "unit_test_broken.json";
+    { std::ofstream f(path); f << "{ this is not json at all"; }
+
+    Scenario s;
+    std::string err;
+    const bool ok = ScenarioLoader::loadFile(path, s, err);
+    std::remove(path.c_str());
+
+    EXPECT_FALSE(ok);
+    EXPECT_FALSE(err.empty());
+}
+
 TEST(ScenarioLoaderTest, MissingFileReportsRatherThanThrows) {
     Scenario s;
     std::string err;
@@ -412,6 +450,33 @@ TEST(WaveMeasurementTest, RecoversAmplitudeAndPeriodFromASyntheticRecord) {
     EXPECT_NEAR(m.amplitude, amplitude, 0.002f);
     EXPECT_NEAR(m.meanLevel, 0.2f, 0.002f);
     EXPECT_GE(m.wavesCounted, 4);
+}
+
+// REGRESSION TEST FOR A REAL MEASUREMENT BUG. A bare mean-crossing test
+// counts every ripple that grazes the mean, so a fundamental carrying any
+// higher-mode content is reported at a fraction of its true period.
+// Measured on the sloshing tank before the hysteresis band was added, the
+// two end-wall probes returned 0.554 s and 0.754 s for the same standing
+// wave against an analytical 1.26 s. Two probes disagreeing about one
+// standing wave is what gave it away.
+TEST(WaveMeasurementTest, RejectsRipplesRidingOnTheFundamental) {
+    const float fundamental = 1.25f;
+    const float amplitude = 0.02f;
+    std::vector<float> t, eta;
+    for (int i = 0; i < 2000; ++i) {
+        const float ti = i * 0.005f;
+        t.push_back(ti);
+        // A clean fundamental plus a small third-harmonic ripple, large
+        // enough to cross the mean repeatedly within each cycle.
+        eta.push_back(0.1f
+            + amplitude * std::sin(2.0f * 3.14159265f * ti / fundamental)
+            + 0.18f * amplitude * std::sin(2.0f * 3.14159265f * ti / (fundamental / 5.0f)));
+    }
+    const WaveMeasurement m = MetricsCollector::measureWaveTrain(t, eta, 0.1f, 9.81f);
+    ASSERT_TRUE(m.valid);
+    EXPECT_NEAR(m.period, fundamental, 0.08f)
+        << "the ripple was counted as separate waves";
+    EXPECT_GE(m.wavesCounted, 5);
 }
 
 TEST(WaveMeasurementTest, RefusesToFitAFlatRecord) {

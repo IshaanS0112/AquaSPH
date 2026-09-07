@@ -171,6 +171,15 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         return false;
     }
 
+    // EVERYTHING BELOW IS INSIDE A try. The loader's documented contract
+    // is that it reports and falls back rather than throwing, and until
+    // this was added it did not honour that: nlohmann's accessors throw
+    // type_error when a field holds the wrong type (a string where a
+    // number is expected, an object where an array is), and nothing caught
+    // it. A scenario file with one mistyped field would abort the process
+    // with a bare `terminate called after throwing`, which is the least
+    // useful possible response to a typo.
+    try {
     Scenario s;
     s.name = j.value("name", std::filesystem::path(path).stem().string());
     s.description = j.value("description", s.description);
@@ -401,6 +410,13 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
 
     out = std::move(s);
     return true;
+
+    } catch (const std::exception& e) {
+        error = "malformed value in '" + path + "': " + e.what() +
+                 " (a field probably holds the wrong type -- see docs/scenarios.md"
+                 " for the expected shape of each key)";
+        return false;
+    }
 }
 
 std::vector<std::string> ScenarioLoader::defaultSearchDirs() {

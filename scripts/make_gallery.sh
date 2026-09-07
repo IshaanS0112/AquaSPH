@@ -5,13 +5,21 @@
 # under a virtual one:
 #     xvfb-run -s "-screen 0 1600x900x24" scripts/make_gallery.sh medium
 #
-# Usage: scripts/make_gallery.sh [quality] [outdir] [width] [height]
+# Usage: scripts/make_gallery.sh [quality] [outdir] [width] [height] [max-seconds]
+#
+# `max-seconds` caps each scenario's simulated duration. Leave it empty for
+# the full run; set it to produce a quick contact sheet, which is
+# worthwhile because software rendering (llvmpipe) is slow enough that a
+# full-duration pass over fourteen scenarios is an overnight job. Whatever
+# you pass is printed in each scenario's render summary, so a partial
+# gallery says so.
 set -euo pipefail
 
 QUALITY="${1:-medium}"
 OUTDIR="${2:-gallery/$QUALITY}"
 WIDTH="${3:-1280}"
 HEIGHT="${4:-720}"
+MAXTIME="${5:-}"
 
 BIN="${AQUASPH_VIEW:-./build/aquasph_view}"
 if [ ! -x "$BIN" ]; then
@@ -28,8 +36,10 @@ for path in configs/scenarios/*.json; do
   echo "=== $name ==="
   frames="$OUTDIR/$name"
   rm -rf "$frames"
+  time_args=()
+  [ -n "$MAXTIME" ] && time_args=(--time "$MAXTIME")
   "$BIN" --scenario "$name" --quality "$QUALITY" --size "$WIDTH" "$HEIGHT" \
-         --record-headless --record "$frames" 2>&1 | tail -n 12
+         "${time_args[@]}" --record-headless --record "$frames" 2>&1 | tail -n 12
 
   if command -v ffmpeg >/dev/null 2>&1; then
     scripts/make_video.sh "$frames" 30 "$OUTDIR/$name" || true

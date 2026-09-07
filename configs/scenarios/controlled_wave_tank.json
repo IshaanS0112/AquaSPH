@@ -81,7 +81,7 @@
     "dt_max": 0.001
   },
   "duration": {
-    "simulated_time": 8.0,
+    "simulated_time": 6.0,
     "output_interval": 0.02
   },
   "metrics": {

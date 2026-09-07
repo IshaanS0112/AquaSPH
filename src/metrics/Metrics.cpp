@@ -212,13 +212,39 @@ WaveMeasurement MetricsCollector::measureWaveTrain(const std::vector<float>& tim
     // up-crossings is the wave period by definition, and the crest and
     // trough between them give the height. Crossings are linearly
     // interpolated so the period is not quantised to the sample interval.
+    //
+    // WITH A HYSTERESIS BAND, and it is not optional. A bare mean-crossing
+    // test counts every ripple that grazes the mean, so a fundamental
+    // carrying any higher-mode content is reported at a fraction of its
+    // true period. Measured on the sloshing tank before this was added:
+    // the two end-wall probes returned 0.554 s and 0.754 s for the same
+    // standing wave, against an analytical 1.26 s -- three different
+    // answers to one question, and the two measurements did not even agree
+    // with each other, which is what gave it away.
+    //
+    // The fix is the standard oceanographic one: after an accepted
+    // up-crossing, the signal must fall below -band before another
+    // up-crossing can be accepted, where band is a fraction of the
+    // record's RMS. That admits one crossing per genuine oscillation and
+    // rejects ripples riding on it.
+    double sumSq = 0.0;
+    for (float e : elevation) {
+        const double d = e - m.meanLevel;
+        sumSq += d * d;
+    }
+    const float rms = static_cast<float>(std::sqrt(sumSq / elevation.size()));
+    const float band = 0.25f * rms;
+
     std::vector<float> crossings;
+    bool armed = true;   // has the signal dipped below -band since the last crossing?
     for (size_t i = 1; i < elevation.size(); ++i) {
         const float a = elevation[i - 1] - m.meanLevel;
         const float b = elevation[i] - m.meanLevel;
-        if (a <= 0.0f && b > 0.0f) {
+        if (b < -band) armed = true;
+        if (armed && a <= 0.0f && b > 0.0f) {
             const float u = (b - a) != 0.0f ? (-a) / (b - a) : 0.0f;
             crossings.push_back(time[i - 1] + u * (time[i] - time[i - 1]));
+            armed = false;
         }
     }
     if (crossings.size() < 2) return m;

@@ -11,7 +11,7 @@
 [![OpenMP](https://img.shields.io/badge/OpenMP-parallel-EE4C2C.svg)](https://www.openmp.org/)
 [![OpenGL](https://img.shields.io/badge/OpenGL-3.3%20core-5586A4.svg?logo=opengl)](https://www.opengl.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)](#build)
-[![Tests](https://img.shields.io/badge/tests-74%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen.svg)](#testing)
 
 Fourteen fluid scenarios composed from reusable primitives in JSON, on a
 weakly-compressible SPH solver with adaptive timestepping, Akinci boundary
@@ -275,10 +275,10 @@ scripts/make_gallery.sh medium               # clips and a contact sheet
 ctest --test-dir build --output-on-failure
 ```
 
-74 tests. The 20 from v1 all still pass — the only edit to them was
+79 tests. The 20 from v1 all still pass — the only edit to them was
 dropping a removed constructor argument; no assertion was changed.
 
-The 54 added in v2 cover, among others: the two force-law bugs (a viscous
+The 59 added in v2 cover, among others: the two force-law bugs (a viscous
 term must oppose relative motion; a stored force must be a force and not
 an acceleration), momentum conservation, XSPH direction, surface-tension
 cohesion, the adaptive timestep's three limits and its NaN handling,
@@ -287,7 +287,10 @@ threads with emitters and sinks active**, boundary-volume scaling and its
 measured shortfall at this resolution, **fluid not leaking through a floor
 under impact**, hydrostatic equilibrium, shape containment and erosion,
 `TimeSeries` shapes, scenario JSON round-tripping, wave-train fitting, and
-linear wavemaker theory against its known limits.
+linear wavemaker theory against its known limits, and four
+**extensibility** cases that build scenarios entirely through the public
+API in combinations no shipped scenario uses — if any of them had needed a
+solver change, it would fail to compile.
 
 ---
 

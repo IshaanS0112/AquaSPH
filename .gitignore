@@ -13,3 +13,14 @@ compile_commands.json
 *.log
 _deps/
 .DS_Store
+
+# Generated output. results/validation/*.json is the exception and IS
+# committed: those three files are the evidence behind docs/validation.md,
+# they are a few kilobytes each, and a validation document whose inputs
+# cannot be inspected is an assertion rather than a result.
+results/*
+!results/validation/
+results/validation/*
+!results/validation/*.json
+gallery/
+frames/

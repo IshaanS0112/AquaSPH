@@ -80,12 +80,44 @@ CliArgs parseArgs(int argc, char** argv) {
             }
             return argv[++i];
         };
+        // std::stoi/stof throw on anything unparseable, and an uncaught
+        // exception out of argument parsing means `terminate called after
+        // throwing` in response to a typo. Named lambdas so every numeric
+        // flag reports which flag and what it received.
+        auto asInt = [&](const char* what) -> int {
+            const std::string v = next(what);
+            try { return std::stoi(v); }
+            catch (const std::exception&) {
+                std::cerr << "[aquasph] " << what << " expects an integer, got '" << v << "'.\n";
+                std::exit(2);
+            }
+        };
+        auto asFloat = [&](const char* what) -> float {
+            const std::string v = next(what);
+            try { return std::stof(v); }
+            catch (const std::exception&) {
+                std::cerr << "[aquasph] " << what << " expects a number, got '" << v << "'.\n";
+                std::exit(2);
+            }
+        };
+        auto asSize = [&](const char* what) -> size_t {
+            const std::string v = next(what);
+            try {
+                const long long n = std::stoll(v);
+                if (n <= 0) throw std::invalid_argument("non-positive");
+                return static_cast<size_t>(n);
+            } catch (const std::exception&) {
+                std::cerr << "[aquasph] " << what << " expects a positive integer, got '"
+                          << v << "'.\n";
+                std::exit(2);
+            }
+        };
         if (arg == "--scenario")            a.scenario = next("--scenario");
         else if (arg == "--metrics")        a.metricsPath = next("--metrics");
-        else if (arg == "--threads")        a.threads = std::stoi(next("--threads"));
-        else if (arg == "--steps")          a.maxSteps = std::stoi(next("--steps"));
-        else if (arg == "--time")           a.simulatedTime = std::stof(next("--time"));
-        else if (arg == "--max-particles")  a.maxParticles = static_cast<size_t>(std::stoll(next("--max-particles")));
+        else if (arg == "--threads")        a.threads = asInt("--threads");
+        else if (arg == "--steps")          a.maxSteps = asInt("--steps");
+        else if (arg == "--time")           a.simulatedTime = asFloat("--time");
+        else if (arg == "--max-particles")  a.maxParticles = asSize("--max-particles");
         else if (arg == "--list-scenarios") a.listScenarios = true;
         else if (arg == "--profile")        a.profile = true;
         else if (arg == "--quiet")          a.quiet = true;

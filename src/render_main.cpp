@@ -133,10 +133,32 @@ CliArgs parseArgs(int argc, char** argv) {
             }
             return argv[++i];
         };
+        // std::stoi/stof throw on anything unparseable; an uncaught
+        // exception out of argument parsing means `terminate called after
+        // throwing` in response to a typo.
+        auto asInt = [&](const char* what) -> int {
+            const std::string v = next(what);
+            try { return std::stoi(v); }
+            catch (const std::exception&) {
+                std::cerr << "[aquasph_view] " << what << " expects an integer, got '"
+                          << v << "'.\n";
+                std::exit(2);
+            }
+        };
+        auto asFloat = [&](const char* what) -> float {
+            const std::string v = next(what);
+            try { return std::stof(v); }
+            catch (const std::exception&) {
+                std::cerr << "[aquasph_view] " << what << " expects a number, got '"
+                          << v << "'.\n";
+                std::exit(2);
+            }
+        };
+
         if (arg == "--scenario")             a.scenario = next("--scenario");
         else if (arg == "--record")          a.recordDir = next("--record");
-        else if (arg == "--threads")         a.threads = std::stoi(next("--threads"));
-        else if (arg == "--time")            a.simulatedTime = std::stof(next("--time"));
+        else if (arg == "--threads")         a.threads = asInt("--threads");
+        else if (arg == "--time")            a.simulatedTime = asFloat("--time");
         else if (arg == "--record-headless") a.headlessRecord = true;
         else if (arg == "--list-scenarios")  a.listScenarios = true;
         else if (arg == "--help" || arg == "-h") a.help = true;
