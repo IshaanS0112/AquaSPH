@@ -33,8 +33,11 @@ class LinkedCell;
 // boundaries; if one is ever driven, this must be recomputed whenever the
 // boundary sampling changes shape (rigid translation and rotation do not
 // change it, which is why paddles and gates are the cheap first case).
+// `boundaryEnd` bounds the loop to [0, boundaryEnd), the range Simulation
+// keeps boundary particles in. -1 scans the whole array.
 void computeBoundaryVolumes(std::vector<Particle>& particles,
                              const LinkedCell& grid,
-                             const CubicSplineKernel& kernel);
+                             const CubicSplineKernel& kernel,
+                             int boundaryEnd = -1);
 
 } // namespace aquasph

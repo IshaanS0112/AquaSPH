@@ -59,10 +59,12 @@ void computeDensityPressure(std::vector<Particle>& particles,
                              const LinkedCell& grid,
                              const CubicSplineKernel& kernel,
                              const std::vector<TaitEOS>& eosByMaterial,
-                             const std::vector<float>& restDensityByMaterial) {
+                             const std::vector<float>& restDensityByMaterial,
+                             int firstFluid) {
     const float h = kernel.h();
     const int n = static_cast<int>(particles.size());
     if (eosByMaterial.empty()) return;
+    const int begin = std::max(0, firstFluid);
 
     #pragma omp parallel
     {
@@ -70,7 +72,7 @@ void computeDensityPressure(std::vector<Particle>& particles,
         neighbors.reserve(128);
 
         #pragma omp for schedule(static)
-        for (int i = 0; i < n; ++i) {
+        for (int i = begin; i < n; ++i) {
             Particle& pi = particles[i];
             if (pi.kind != ParticleKind::Fluid) continue;
 

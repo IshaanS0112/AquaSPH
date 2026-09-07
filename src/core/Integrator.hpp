@@ -32,6 +32,20 @@ struct BoundaryBox {
     // Velocity retained (and reversed) on a containment hit.
     // 0 = inelastic/absorbing, 1 = perfectly elastic.
     float damping = 0.5f;
+
+    // Containment does not fire until a particle is this far outside the
+    // face. WHY IT IS NOT ZERO: with boundary particles enabled, fluid at
+    // rest against a wall settles with its last layer sitting essentially
+    // ON the nominal domain plane -- the true no-penetration surface is
+    // about half a particle spacing further out, midway to the first
+    // boundary layer. At exactly zero tolerance every one of those
+    // particles trips containment on the negative half of its
+    // sub-micrometre jitter, every step: the counter reports millions of
+    // "events" that are not penetration, and worse, each one zeroes a
+    // velocity component, which is a real if small artificial damping
+    // applied along every wall. A quarter-spacing tolerance removes both.
+    // Anything past it is genuine penetration and is counted as such.
+    float tolerance = 0.0f;
     // Per-face behaviour: -x, +x, -y, +y, -z, +z. Defaults keep the
     // original all-solid box, so existing aggregate initialisation
     // `BoundaryBox{min, max, damping}` behaves exactly as before.
@@ -90,8 +104,14 @@ public:
 
     const BoundaryBox& bounds() const { return bounds_; }
 
+    // Index of the first fluid particle; the integration loops start
+    // there instead of walking a long prefix of boundary particles they
+    // would only skip. Defaults to 0.
+    void setFirstFluidIndex(int i) { firstFluid_ = i; }
+
 private:
     BoundaryBox bounds_;
+    int firstFluid_ = 0;
     long long containmentEvents_ = 0;
     bool outflow_ = false;
 

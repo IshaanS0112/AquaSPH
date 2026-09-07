@@ -20,6 +20,21 @@ add_compile_options(-Wall -Wextra)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 option(AQUASPH_BUILD_TESTS "Build unit tests (GoogleTest)" ON)
+
+# Short git revision, stamped into metrics output so a recorded experiment
+# names the code that produced it. Best-effort: a source tarball with no
+# .git directory still configures and builds, it just reports "unknown".
+set(AQUASPH_GIT_REV "unknown")
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE AQUASPH_GIT_REV
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+endif()
+message(STATUS "AquaSPH revision: ${AQUASPH_GIT_REV}")
 option(AQUASPH_BUILD_VISUALIZATION "Build the aquasph_view OpenGL/GLFW renderer" OFF)
 
 # --- Dependencies ---------------------------------------------------------

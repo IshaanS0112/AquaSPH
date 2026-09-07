@@ -34,7 +34,8 @@ inline float cohesionSpline(float r, float h) {
 void computeSurfaceNormals(std::vector<Particle>& particles,
                             const LinkedCell& grid,
                             const CubicSplineKernel& kernel,
-                            const MaterialTable& materials) {
+                            const MaterialTable& materials,
+                            int firstFluid) {
     bool anyTension = false;
     for (const Material& m : materials) {
         if (m.surfaceTension > 0.0f) { anyTension = true; break; }
@@ -43,6 +44,7 @@ void computeSurfaceNormals(std::vector<Particle>& particles,
 
     const float h = kernel.h();
     const int n = static_cast<int>(particles.size());
+    const int begin = std::max(0, firstFluid);
 
     #pragma omp parallel
     {
@@ -50,7 +52,7 @@ void computeSurfaceNormals(std::vector<Particle>& particles,
         neighbors.reserve(128);
 
         #pragma omp for schedule(static)
-        for (int i = 0; i < n; ++i) {
+        for (int i = begin; i < n; ++i) {
             Particle& pi = particles[i];
             if (pi.kind != ParticleKind::Fluid) continue;
 
@@ -91,6 +93,7 @@ void computeForces(std::vector<Particle>& particles,
     const int n = static_cast<int>(particles.size());
     const MaterialTable* mats = params.materials;
     const bool useXsph = params.xsphEpsilon > 0.0f;
+    const int begin = std::max(0, params.firstFluidIndex);
 
     #pragma omp parallel
     {
@@ -98,7 +101,7 @@ void computeForces(std::vector<Particle>& particles,
         neighbors.reserve(128);
 
         #pragma omp for schedule(static)
-        for (int i = 0; i < n; ++i) {
+        for (int i = begin; i < n; ++i) {
             Particle& pi = particles[i];
             if (pi.kind != ParticleKind::Fluid) {
                 pi.force = glm::vec3(0.0f);

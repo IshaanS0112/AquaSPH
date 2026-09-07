@@ -91,10 +91,18 @@ void computeDensityPressure(std::vector<Particle>& particles,
 //
 // Boundary particles themselves are skipped as `i`: they are never
 // integrated, so their own density and pressure are never read.
+//
+// `firstFluid` is the index of the first fluid particle. Simulation keeps
+// boundary particles at the front of the array, so passing it lets the
+// parallel loop skip them entirely rather than starting every thread's
+// share with a run of no-ops -- which, with a static schedule and 3x more
+// boundary particles than fluid, left one thread doing nearly all the
+// work. Defaults to 0, which is correct for any other layout.
 void computeDensityPressure(std::vector<Particle>& particles,
                              const LinkedCell& grid,
                              const CubicSplineKernel& kernel,
                              const std::vector<TaitEOS>& eosByMaterial,
-                             const std::vector<float>& restDensityByMaterial);
+                             const std::vector<float>& restDensityByMaterial,
+                             int firstFluid = 0);
 
 } // namespace aquasph

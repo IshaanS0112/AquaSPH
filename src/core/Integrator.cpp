@@ -1,5 +1,6 @@
 #include "Integrator.hpp"
 #include "ParallelReduce.hpp"
+#include <algorithm>
 
 namespace aquasph {
 
@@ -11,6 +12,7 @@ void PredictorCorrectorIntegrator::step(
     const std::function<void(std::vector<Particle>&)>& recomputeForces) {
 
     const int n = static_cast<int>(particles.size());
+    const int begin = std::max(0, std::min(firstFluid_, n));
     std::vector<glm::vec3> v0(n), f0(n);
 
     // All three loops below touch only particles[i] for their own index
@@ -23,7 +25,7 @@ void PredictorCorrectorIntegrator::step(
     // velocity are prescribed by the scenario's obstacle motion, not
     // solved for here.
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < n; ++i) {
+    for (int i = begin; i < n; ++i) {
         v0[i] = particles[i].velocity;
         f0[i] = particles[i].force;
     }
@@ -31,7 +33,7 @@ void PredictorCorrectorIntegrator::step(
     // Step 1: predicted half-step velocity, written into particle.velocity
     // so the recompute callback's viscosity term sees it.
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < n; ++i) {
+    for (int i = begin; i < n; ++i) {
         if (particles[i].kind != ParticleKind::Fluid) continue;
         particles[i].velocity = v0[i] + (f0[i] / particles[i].mass) * (dt * 0.5f);
     }
@@ -62,7 +64,7 @@ void PredictorCorrectorIntegrator::step(
         bool localOutflow = false;
 
         #pragma omp for schedule(static) nowait
-        for (int i = 0; i < n; ++i) {
+        for (int i = begin; i < n; ++i) {
             Particle& p = particles[i];
             if (p.kind != ParticleKind::Fluid) continue;
             const glm::vec3 vNew = v0[i] + (p.force / p.mass) * dt;
@@ -84,10 +86,11 @@ void PredictorCorrectorIntegrator::step(
 
 void PredictorCorrectorIntegrator::applyBoundary(Particle& p, long long& events,
                                                   bool& outflow) const {
+    const float tol = bounds_.tolerance;
     auto handle = [&](float& pos, float& vel, float lo, float hi,
                        FaceMode loMode, FaceMode hiMode) {
         const float span = hi - lo;
-        if (pos < lo) {
+        if (pos < lo - tol) {
             switch (loMode) {
                 case FaceMode::Solid:
                     pos = lo;
@@ -101,7 +104,7 @@ void PredictorCorrectorIntegrator::applyBoundary(Particle& p, long long& events,
                     if (span > 0.0f) pos += span;
                     break;
             }
-        } else if (pos > hi) {
+        } else if (pos > hi + tol) {
             switch (hiMode) {
                 case FaceMode::Solid:
                     pos = hi;

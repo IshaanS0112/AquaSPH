@@ -22,6 +22,9 @@ set(AQUASPH_TEST_SOURCES
     test_forces.cpp
     test_timestep.cpp
     test_determinism.cpp
+    test_boundary.cpp
+    test_scene.cpp
+    test_dynamic_particles.cpp
 )
 
 add_executable(aquasph_tests ${AQUASPH_TEST_SOURCES})

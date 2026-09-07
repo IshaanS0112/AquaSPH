@@ -1,13 +1,16 @@
 #include "BoundaryVolume.hpp"
 #include "../spatial/LinkedCell.hpp"
+#include <algorithm>
 
 namespace aquasph {
 
 void computeBoundaryVolumes(std::vector<Particle>& particles,
                              const LinkedCell& grid,
-                             const CubicSplineKernel& kernel) {
+                             const CubicSplineKernel& kernel,
+                             int boundaryEnd) {
     const float h = kernel.h();
-    const int n = static_cast<int>(particles.size());
+    const int all = static_cast<int>(particles.size());
+    const int n = (boundaryEnd < 0) ? all : std::min(boundaryEnd, all);
 
     #pragma omp parallel
     {
