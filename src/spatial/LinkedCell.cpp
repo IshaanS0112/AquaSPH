@@ -10,15 +10,20 @@ LinkedCell::LinkedCell(const glm::vec3& domainMin, const glm::vec3& domainMax, f
     gridDims_.x = std::max(1, static_cast<int>(std::floor(span.x / cellSize_)) + 1);
     gridDims_.y = std::max(1, static_cast<int>(std::floor(span.y / cellSize_)) + 1);
     gridDims_.z = std::max(1, static_cast<int>(std::floor(span.z / cellSize_)) + 1);
-    cells_.resize(static_cast<size_t>(gridDims_.x) * gridDims_.y * gridDims_.z);
+    cellStart_.assign(static_cast<size_t>(cellCount()) + 1, 0);
+    cursor_.assign(static_cast<size_t>(cellCount()), 0);
 }
 
 glm::ivec3 LinkedCell::cellCoords(const glm::vec3& pos) const {
     const glm::vec3 rel = (pos - domainMin_) / cellSize_;
     glm::ivec3 c;
-    c.x = std::clamp(static_cast<int>(std::floor(rel.x)), 0, gridDims_.x - 1);
-    c.y = std::clamp(static_cast<int>(std::floor(rel.y)), 0, gridDims_.y - 1);
-    c.z = std::clamp(static_cast<int>(std::floor(rel.z)), 0, gridDims_.z - 1);
+    // Non-finite coordinates land in cell 0 rather than propagating into
+    // an out-of-range index: a diverging simulation must still be able to
+    // finish its step and report UNSTABLE instead of reading out of
+    // bounds on the way there.
+    c.x = std::isfinite(rel.x) ? std::clamp(static_cast<int>(std::floor(rel.x)), 0, gridDims_.x - 1) : 0;
+    c.y = std::isfinite(rel.y) ? std::clamp(static_cast<int>(std::floor(rel.y)), 0, gridDims_.y - 1) : 0;
+    c.z = std::isfinite(rel.z) ? std::clamp(static_cast<int>(std::floor(rel.z)), 0, gridDims_.z - 1) : 0;
     return c;
 }
 
@@ -26,28 +31,57 @@ int LinkedCell::flatten(const glm::ivec3& c) const {
     return c.x + gridDims_.x * (c.y + gridDims_.y * c.z);
 }
 
-// DELIBERATELY SERIAL, even though computeDensity/
-// ForceCompute. Naively parallelizing this loop would be a real data
-// race: multiple threads could land on the same cell and call
-// push_back() on its bucket concurrently (a std::vector isn't safe for
-// concurrent mutation, and reallocation during one thread's push_back
-// would invalidate the pointers another thread is mid-write on). Making
-// it parallel correctly means restructuring to a two-pass counting-sort
-// (parallel per-cell atomic counts, then a prefix sum, then a parallel
-// scatter using atomic fetch-add for each particle's slot) -- a real
-// change, not a one-line pragma, and not the highest-value place to
-// spend that effort: build() is O(N) with cheap work per particle,
-// while computeDensityPressure/computeForces are O(N * neighbors) with
-// much more work per particle. Worth revisiting if profiling ever shows
-// build() has become the bottleneck now that the O(N*neighbors) loops
-// are threaded (Amdahl's law: as the parallel parts get faster, this
-// serial part's share of total time grows).
+// COUNTING SORT, in three passes.
+//
+// Pass 1 (parallel) assigns each particle its flat cell index. Every
+// iteration writes only cellOf_[i], so it is embarrassingly parallel.
+//
+// Pass 2 (parallel count, serial prefix sum) turns per-cell occupancy
+// into the CSR start offsets. The counting increments are integers, so
+// their result does not depend on the order the atomics happen to land
+// in; the prefix sum is a sequential scan over cells and is cheap
+// (a few hundred thousand adds at the resolutions this project runs).
+//
+// Pass 3 (SERIAL, deliberately) scatters particle indices into their
+// cells in ascending particle order. The textbook parallel version uses
+// an atomic fetch-add per particle to claim a slot, which is correct but
+// leaves each cell's contents in thread-scheduling order -- and a cell's
+// order is the summation order of every neighbour loop that later reads
+// it. Float addition is not associative, so that would silently make
+// every density and force sum thread-count-dependent. The pass is one
+// array write per particle with no allocation; keeping it ordered costs
+// far less than the guarantee is worth.
 void LinkedCell::build(const std::vector<Particle>& particles) {
-    for (auto& bucket : cells_) bucket.clear();
-    for (int i = 0; i < static_cast<int>(particles.size()); ++i) {
-        const glm::ivec3 c = cellCoords(particles[i].position);
-        cells_[flatten(c)].push_back(i);
+    const int n = static_cast<int>(particles.size());
+    const int cells = cellCount();
+
+    if (static_cast<int>(cellOf_.size()) < n) {
+        cellOf_.resize(static_cast<size_t>(n));
+        indices_.resize(static_cast<size_t>(n));
     }
+
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < n; ++i) {
+        cellOf_[static_cast<size_t>(i)] = flatten(cellCoords(particles[i].position));
+    }
+
+    std::fill(cellStart_.begin(), cellStart_.end(), 0);
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < n; ++i) {
+        #pragma omp atomic
+        ++cellStart_[static_cast<size_t>(cellOf_[static_cast<size_t>(i)]) + 1];
+    }
+
+    for (int c = 0; c < cells; ++c) {
+        cellStart_[static_cast<size_t>(c) + 1] += cellStart_[static_cast<size_t>(c)];
+    }
+
+    std::copy(cellStart_.begin(), cellStart_.begin() + cells, cursor_.begin());
+    for (int i = 0; i < n; ++i) {
+        indices_[static_cast<size_t>(cursor_[static_cast<size_t>(cellOf_[static_cast<size_t>(i)])]++)] = i;
+    }
+
+    count_ = n;
 }
 
 void LinkedCell::getNeighbors(int particleIdx, const std::vector<Particle>& particles,
@@ -59,12 +93,18 @@ void LinkedCell::getNeighbors(int particleIdx, const std::vector<Particle>& part
         for (int dy = -1; dy <= 1; ++dy) {
             const int y = c.y + dy;
             if (y < 0 || y >= gridDims_.y) continue;
-            for (int dx = -1; dx <= 1; ++dx) {
-                const int x = c.x + dx;
-                if (x < 0 || x >= gridDims_.x) continue;
-                const auto& bucket = cells_[flatten(glm::ivec3(x, y, z))];
-                outNeighbors.insert(outNeighbors.end(), bucket.begin(), bucket.end());
-            }
+            // The three cells along x are contiguous in the flat index, so
+            // one slice covers all of them: their combined range is
+            // [start(x-1), end(x+1)). That turns the innermost of the
+            // three loops into a single contiguous copy.
+            const int x0 = std::max(c.x - 1, 0);
+            const int x1 = std::min(c.x + 1, gridDims_.x - 1);
+            const int base = gridDims_.x * (y + gridDims_.y * z);
+            const int begin = cellStart_[static_cast<size_t>(base + x0)];
+            const int end = cellStart_[static_cast<size_t>(base + x1) + 1];
+            if (end <= begin) continue;
+            outNeighbors.insert(outNeighbors.end(),
+                                 indices_.begin() + begin, indices_.begin() + end);
         }
     }
 }

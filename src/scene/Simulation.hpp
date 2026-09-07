@@ -40,6 +40,34 @@ struct StepStats {
     double fluidVolume = 0.0;   // m^3, sum of m_i / rho_i
 };
 
+// Accumulated wall time per pipeline stage, in milliseconds, for the whole
+// run. Off by default: the timers around each stage are cheap but they do
+// force the OpenMP regions apart, and a benchmark should measure the
+// solver rather than the instrumentation.
+//
+// The point of measuring per stage rather than per step is Amdahl's law.
+// docs/architecture.md predicted, before any of this was threaded, that
+// LinkedCell::build would become a growing share of the total as the
+// parallel loops sped up. This is how that prediction gets checked with
+// numbers instead of argued about.
+struct StageProfile {
+    double gridBuild = 0.0;
+    double boundaryVolumes = 0.0;
+    double density = 0.0;
+    double normals = 0.0;
+    double forces = 0.0;      // includes the integrator's mid-step re-evaluation
+    double timestep = 0.0;
+    double integrate = 0.0;
+    double emitSink = 0.0;
+    double stats = 0.0;
+    int steps = 0;
+
+    double total() const {
+        return gridBuild + boundaryVolumes + density + normals + forces +
+               timestep + integrate + emitSink + stats;
+    }
+};
+
 // Owns the particle array and every scenario primitive, and runs the step
 // pipeline. The solver modules under core/ know nothing about scenarios;
 // this class is where a Scenario becomes a running simulation.
@@ -91,6 +119,9 @@ public:
     // Body acceleration currently applied (gravity + external forces).
     glm::vec3 bodyAcceleration() const { return bodyAcceleration_; }
 
+    void enableProfiling(bool on) { profiling_ = on; }
+    const StageProfile& profile() const { return profile_; }
+
     // Number of particles counted as unstable: non-finite coordinates, or
     // outside the domain by more than a tolerance on a face that is not
     // Open. Open faces legitimately lose particles, so counting them as
@@ -135,6 +166,8 @@ private:
     std::unique_ptr<TimeStepController> timestep_;
     ForceParams forceParams_;
     StepStats stats_;
+    StageProfile profile_;
+    bool profiling_ = false;
 
     void buildBoundary();
     void buildFluid();

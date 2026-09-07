@@ -13,7 +13,16 @@ void PredictorCorrectorIntegrator::step(
 
     const int n = static_cast<int>(particles.size());
     const int begin = std::max(0, std::min(firstFluid_, n));
-    std::vector<glm::vec3> v0(n), f0(n);
+    const size_t span = static_cast<size_t>(n - begin);
+    // Grow only; never shrink. A sink that removes particles must not
+    // hand the next step a reallocation.
+    if (v0_.size() < span) { v0_.resize(span); f0_.resize(span); }
+    // Indexed as [i - begin] rather than through a base pointer biased by
+    // -begin: forming a pointer before the start of an array is undefined
+    // behaviour even when it is never dereferenced there, and sanitizers
+    // are right to flag it.
+    std::vector<glm::vec3>& v0 = v0_;
+    std::vector<glm::vec3>& f0 = f0_;
 
     // All three loops below touch only particles[i] for their own index
     // i -- no cross-particle reads or writes -- so each parallelizes
@@ -26,8 +35,8 @@ void PredictorCorrectorIntegrator::step(
     // solved for here.
     #pragma omp parallel for schedule(static)
     for (int i = begin; i < n; ++i) {
-        v0[i] = particles[i].velocity;
-        f0[i] = particles[i].force;
+        v0[i - begin] = particles[i].velocity;
+        f0[i - begin] = particles[i].force;
     }
 
     // Step 1: predicted half-step velocity, written into particle.velocity
@@ -35,7 +44,8 @@ void PredictorCorrectorIntegrator::step(
     #pragma omp parallel for schedule(static)
     for (int i = begin; i < n; ++i) {
         if (particles[i].kind != ParticleKind::Fluid) continue;
-        particles[i].velocity = v0[i] + (f0[i] / particles[i].mass) * (dt * 0.5f);
+        particles[i].velocity =
+            v0[i - begin] + (f0[i - begin] / particles[i].mass) * (dt * 0.5f);
     }
 
     // Step 2: re-evaluate forces at the half-step velocity. computeForces
@@ -67,7 +77,7 @@ void PredictorCorrectorIntegrator::step(
         for (int i = begin; i < n; ++i) {
             Particle& p = particles[i];
             if (p.kind != ParticleKind::Fluid) continue;
-            const glm::vec3 vNew = v0[i] + (p.force / p.mass) * dt;
+            const glm::vec3 vNew = v0[i - begin] + (p.force / p.mass) * dt;
             p.velocity = vNew;
             p.position += (vNew + p.xsphDelta) * dt;
             applyBoundary(p, localEvents, localOutflow);

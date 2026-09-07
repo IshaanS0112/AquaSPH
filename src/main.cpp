@@ -46,6 +46,7 @@ struct CliArgs {
     float simulatedTime = -1.0f;
     size_t maxParticles = 4000000;
     bool listScenarios = false;
+    bool profile = false;
     bool quiet = false;
     bool help = false;
 };
@@ -62,6 +63,7 @@ void printUsage() {
         "  --steps N            hard cap on the number of timesteps\n"
         "  --max-particles N    ceiling on total particles (default: 4000000)\n"
         "  --metrics FILE       write machine-readable metrics JSON\n"
+        "  --profile            report wall time per pipeline stage\n"
         "  --quiet              suppress periodic progress output\n"
         "  --help               this message\n\n"
         "Exit code is 0 for STABLE, 1 for UNSTABLE, 2 for a usage or load error.\n";
@@ -85,6 +87,7 @@ CliArgs parseArgs(int argc, char** argv) {
         else if (arg == "--time")           a.simulatedTime = std::stof(next("--time"));
         else if (arg == "--max-particles")  a.maxParticles = static_cast<size_t>(std::stoll(next("--max-particles")));
         else if (arg == "--list-scenarios") a.listScenarios = true;
+        else if (arg == "--profile")        a.profile = true;
         else if (arg == "--quiet")          a.quiet = true;
         else if (arg == "--help" || arg == "-h") a.help = true;
         else if (arg == "--quality") {
@@ -161,6 +164,7 @@ int main(int argc, char** argv) {
     if (args.maxSteps > 0) scenario.duration.maxSteps = args.maxSteps;
 
     Simulation sim(scenario, args.maxParticles);
+    sim.enableProfiling(args.profile);
     MetricsCollector metrics(sim.scenario());
 
     if (!args.quiet) {
@@ -299,6 +303,38 @@ int main(int argc, char** argv) {
 
     std::cout << "STATUS: " << (rep.stable ? "STABLE" : "UNSTABLE")
               << "  (" << rep.unstableParticles << " unstable particles)\n" << std::flush;
+
+    if (args.profile) {
+        const StageProfile& pr = sim.profile();
+        const double total = pr.total();
+        const double n = std::max(1, pr.steps);
+        std::cout << "\n=== stage profile (" << pr.steps << " steps, "
+                  << activeThreads << " threads, "
+                  << rep.fluidParticles << " fluid + " << rep.boundaryParticles
+                  << " boundary particles) ===\n";
+        struct Row { const char* name; double ms; };
+        const Row rows[] = {
+            {"linked-cell build", pr.gridBuild},
+            {"boundary volumes",  pr.boundaryVolumes},
+            {"density + pressure", pr.density},
+            {"surface normals",   pr.normals},
+            {"forces (x2/step)",  pr.forces},
+            {"timestep control",  pr.timestep},
+            {"integration",       pr.integrate},
+            {"emitters + sinks",  pr.emitSink},
+            {"statistics",        pr.stats},
+        };
+        for (const Row& r : rows) {
+            std::cout << "  " << std::left << std::setw(20) << r.name
+                      << std::right << std::setw(10) << std::fixed << std::setprecision(3)
+                      << (r.ms / n) << " ms/step  "
+                      << std::setw(6) << std::setprecision(1)
+                      << (total > 0.0 ? 100.0 * r.ms / total : 0.0) << "%\n";
+        }
+        std::cout << "  " << std::left << std::setw(20) << "TOTAL (measured)"
+                  << std::right << std::setw(10) << std::setprecision(3) << (total / n)
+                  << " ms/step\n" << std::defaultfloat << std::left;
+    }
 
     if (!args.metricsPath.empty()) {
         if (rep.writeJson(args.metricsPath)) {

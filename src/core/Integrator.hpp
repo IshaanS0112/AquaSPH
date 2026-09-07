@@ -112,6 +112,19 @@ public:
 private:
     BoundaryBox bounds_;
     int firstFluid_ = 0;
+
+    // Scratch for the predictor-corrector's saved initial velocity and
+    // force. MEMBERS, NOT LOCALS. As locals these were two fresh
+    // std::vector<glm::vec3> allocations of the full particle count on
+    // every single step -- 5 MB of allocate-zero-free per step at 218k
+    // particles, which profiling showed was 27% of total step time,
+    // more than the density pass. Reused buffers make the same work
+    // roughly free. They are also sized to the FLUID range only; a
+    // scenario with more boundary particles than fluid, which thin tanks
+    // routinely have, was allocating and zeroing well over half of this
+    // for indices the loops never touch.
+    std::vector<glm::vec3> v0_;
+    std::vector<glm::vec3> f0_;
     long long containmentEvents_ = 0;
     bool outflow_ = false;
 

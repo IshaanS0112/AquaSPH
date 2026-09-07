@@ -2,6 +2,7 @@
 #include "../core/BoundaryVolume.hpp"
 #include "../core/ParallelReduce.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iostream>
 
@@ -341,40 +342,104 @@ int Simulation::runSinks() {
     return removed;
 }
 
+namespace {
+// Wall-clock stopwatch for the stage profile. Scoped so a stage's timing
+// cannot be left running past its own block.
+struct StageTimer {
+    double* sink;
+    bool active;
+    std::chrono::high_resolution_clock::time_point start;
+    StageTimer(double* s, bool on) : sink(s), active(on) {
+        if (active) start = std::chrono::high_resolution_clock::now();
+    }
+    ~StageTimer() {
+        if (!active) return;
+        *sink += std::chrono::duration<double, std::milli>(
+                     std::chrono::high_resolution_clock::now() - start).count();
+    }
+};
+} // namespace
+
 const StepStats& Simulation::step() {
     updateObstacles(time_);
     updateBodyAcceleration(time_);
 
-    grid_->build(particles_);
+    {
+        StageTimer t(&profile_.gridBuild, profiling_);
+        grid_->build(particles_);
+    }
     if (anyMovingObstacle_) {
         // Rigid translation does not change distances *within* one
         // obstacle, but it does change them between a moving paddle and
         // the tank walls it slides past, so the volumes are refreshed
         // while anything is moving. Static scenarios never pay this.
+        StageTimer t(&profile_.boundaryVolumes, profiling_);
         computeBoundaryVolumes(particles_, *grid_, *kernel_, static_cast<int>(boundaryCount_));
     }
 
     const int firstFluid = static_cast<int>(boundaryCount_);
-    computeDensityPressure(particles_, *grid_, *kernel_, eosTable_, restDensities_, firstFluid);
-    computeSurfaceNormals(particles_, *grid_, *kernel_, materials_, firstFluid);
-    computeForces(particles_, *grid_, *kernel_, forceParams_);
+    {
+        StageTimer t(&profile_.density, profiling_);
+        computeDensityPressure(particles_, *grid_, *kernel_, eosTable_, restDensities_, firstFluid);
+    }
+    {
+        StageTimer t(&profile_.normals, profiling_);
+        computeSurfaceNormals(particles_, *grid_, *kernel_, materials_, firstFluid);
+    }
+    {
+        StageTimer t(&profile_.forces, profiling_);
+        computeForces(particles_, *grid_, *kernel_, forceParams_);
+    }
 
-    const TimeStepInfo ts = timestep_->compute(particles_);
+    TimeStepInfo ts;
+    {
+        StageTimer t(&profile_.timestep, profiling_);
+        ts = timestep_->compute(particles_);
+    }
 
+    // The integrator re-evaluates forces once mid-step, through this
+    // callback. That evaluation is charged to `forces` -- so the force
+    // column means "all force evaluation", not "the first one only",
+    // which would understate it by about half.
+    //
+    // The timers therefore NEST, and a naive nested timer double-counts:
+    // the first version of this profile charged the mid-step force
+    // evaluation to both columns, reported integration as 27% of step
+    // time, and summed to 260 ms/step against a measured 189 ms/step
+    // wall clock. The nested time is subtracted here so every column is
+    // exclusive and the total is meaningful.
     const auto recompute = [&](std::vector<Particle>& p) {
+        StageTimer t(&profile_.forces, profiling_);
         computeForces(p, *grid_, *kernel_, forceParams_);
     };
-    integrator_->step(particles_, ts.dt, recompute);
+    {
+        const double forcesBefore = profile_.forces;
+        double inclusive = 0.0;
+        {
+            StageTimer t(&inclusive, profiling_);
+            integrator_->step(particles_, ts.dt, recompute);
+        }
+        profile_.integrate += inclusive - (profile_.forces - forcesBefore);
+    }
 
     time_ += ts.dt;
     ++stepCount_;
     prevDt_ = ts.dt;
 
-    const int removed = runSinks();
-    const int emitted = runEmitters(ts.dt);
+    int removed = 0;
+    int emitted = 0;
+    {
+        StageTimer t(&profile_.emitSink, profiling_);
+        removed = runSinks();
+        emitted = runEmitters(ts.dt);
+    }
 
     integrator_->resetOutflow();
-    refreshStats(ts, emitted, removed);
+    {
+        StageTimer t(&profile_.stats, profiling_);
+        refreshStats(ts, emitted, removed);
+    }
+    ++profile_.steps;
     return stats_;
 }
 
