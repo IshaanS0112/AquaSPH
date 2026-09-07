@@ -14,6 +14,7 @@
 #include "core/DensityPressure.hpp"
 #include "core/ForceCompute.hpp"
 #include "core/Integrator.hpp"
+#include "core/TimeStep.hpp"
 #include "spatial/LinkedCell.hpp"
 #include "io/ConfigLoader.hpp"
 #include "benchmark/PerfTimer.hpp"
@@ -119,10 +120,22 @@ int main(int argc, char** argv) {
 
     CubicSplineKernel kernel(cfg.h);
     TaitEOS eos(cfg.restDensity, cfg.soundSpeed, cfg.gamma);
-    ForceParams forceParams{cfg.viscosity, cfg.gravity};
+    ForceParams forceParams;
+    forceParams.bodyAcceleration = cfg.gravity;
+    forceParams.viscosity = cfg.viscosity;
+    forceParams.xsphEpsilon = cfg.xsphEpsilon;
     BoundaryBox bounds{cfg.domainMin, cfg.domainMax, cfg.wallDamping};
-    PredictorCorrectorIntegrator integrator(bounds, cfg.maxSpeed);
+    PredictorCorrectorIntegrator integrator(bounds);
     LinkedCell grid(cfg.domainMin, cfg.domainMax, cfg.h);
+
+    TimeStepParams tsParams;
+    tsParams.dtMax = cfg.dt;
+    const float nu = cfg.restDensity > 0.0f ? cfg.viscosity / cfg.restDensity : 0.0f;
+    TimeStepController timestep(tsParams, cfg.h, cfg.soundSpeed, nu);
+    float simTime = 0.0f;
+    float prevDt = 0.0f;
+    double dtSum = 0.0;
+    float dtMin = 1.0e30f, dtMax = 0.0f;
 
     const auto recompute = [&](std::vector<Particle>& p) {
         computeForces(p, grid, kernel, forceParams);
@@ -135,7 +148,19 @@ int main(int argc, char** argv) {
         grid.build(particles);
         computeDensityPressure(particles, grid, kernel, eos);
         computeForces(particles, grid, kernel, forceParams);
-        integrator.step(particles, cfg.dt, recompute);
+
+        const TimeStepInfo ts = timestep.compute(particles);
+        if (!args.quiet && TimeStepController::isOrderOfMagnitudeChange(prevDt, ts.dt)) {
+            std::cout << "  [dt] step " << step << ": " << prevDt << " -> " << ts.dt
+                      << " s (|v|max=" << ts.maxSpeed << ", |a|max=" << ts.maxAccel << ")\n";
+        }
+        prevDt = ts.dt;
+        dtSum += ts.dt;
+        dtMin = std::min(dtMin, ts.dt);
+        dtMax = std::max(dtMax, ts.dt);
+        simTime += ts.dt;
+
+        integrator.step(particles, ts.dt, recompute);
 
         timer.stop("step");
 
@@ -170,6 +195,12 @@ int main(int argc, char** argv) {
     std::cout << "Steps:                      " << cfg.maxSteps << "\n";
     std::cout << "Avg step time:              " << avgMs << " ms\n";
     std::cout << "FPS:                        " << fps << "\n";
+    std::cout << std::scientific << std::setprecision(3);
+    std::cout << "Simulated time:             " << simTime << " s\n";
+    std::cout << "dt [min/avg/max]:           " << dtMin << " / "
+              << (cfg.maxSteps > 0 ? dtSum / cfg.maxSteps : 0.0) << " / " << dtMax << " s\n";
+    std::cout << std::defaultfloat;
+    std::cout << "Wall containment events:    " << integrator.containmentEvents() << "\n";
     std::cout << "Unstable particles at end:  " << finalUnstable << " / " << particles.size() << "\n";
     std::cout << "STATUS: " << (finalUnstable == 0 ? "STABLE" : "UNSTABLE") << "\n" << std::flush;
 

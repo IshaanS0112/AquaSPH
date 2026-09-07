@@ -14,10 +14,14 @@ struct Config {
     float restDensity    = 1000.0f; // rho0, kg/m^3
     float soundSpeed     = 40.0f;   // c0, m/s -- artificial, NOT water's true ~1480 m/s; see docs/architecture.md
     float gamma           = 7.0f;
-    float viscosity        = 0.018f; // mu, tunable artificial viscosity coefficient (see ForceCompute.cpp)
+    // mu, dynamic viscosity in Pa*s within the Morris et al. (1997)
+    // discretisation. RETUNED IN V2: the v1 value belonged to a term that
+    // was both wrongly signed and effectively divided by particle mass, so
+    // its magnitude carried no physical meaning. See docs/architecture.md.
+    float viscosity        = 5.0f;
 
     // --- Time integration ---
-    float dt              = 0.001f;  // s
+    float dt              = 0.001f;  // s -- now the *upper bound* on the adaptive step (see core/TimeStep.hpp)
     int   maxSteps         = 1000;
     int   reportInterval   = 100;
 
@@ -40,10 +44,16 @@ struct Config {
     // default for a free-surface liquid; see docs/architecture.md.
     float wallDamping = 0.05f;
 
-    // Numerical safety valve, not a physical parameter -- see the
-    // comment above PredictorCorrectorIntegrator in Integrator.hpp for
-    // why a fixed-timestep weakly-compressible SPH sim needs this.
-    float maxSpeed = 20.0f;
+    // Monaghan (1989) XSPH coefficient. See core/ForceCompute.cpp.
+    float xsphEpsilon = 0.5f;
+
+    // RENDER-ONLY. The speed (m/s) that maps to the top of the colour
+    // ramp. v1 reused the integrator's velocity clamp for this, which
+    // meant most particles sat at exactly the clamp value during the
+    // interesting part of the run and rendered as a flat white sheet.
+    // Visualisation normalisation is now a separate, per-scenario number
+    // and never touches the physics.
+    float referenceSpeed = 4.0f;
 };
 
 class ConfigLoader {

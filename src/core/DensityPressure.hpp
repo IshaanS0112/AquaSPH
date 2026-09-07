@@ -65,9 +65,36 @@ struct TaitEOS {
 // practice), then pressure_i = TaitEOS::pressure(rho_i). Uses the
 // linked-cell grid to restrict the neighbor search to the particle's own
 // cell plus its 26 adjacent cells instead of an O(N^2) all-pairs scan.
+//
+// SINGLE-MATERIAL OVERLOAD. Every particle is treated as fluid with the
+// same EOS. Retained because it is the minimal, directly testable form of
+// the density estimate (tests/test_density.cpp drives it), and because
+// the legacy dam-break entry point still uses it.
 void computeDensityPressure(std::vector<Particle>& particles,
                              const LinkedCell& grid,
                              const CubicSplineKernel& kernel,
                              const TaitEOS& eos);
+
+// MULTI-MATERIAL / BOUNDARY-AWARE OVERLOAD, used by the scenario engine.
+//
+// Differs from the single-material form in two ways:
+//
+//  1. Each fluid particle's EOS is looked up by its material index, so a
+//     scenario can mix materials without the solver branching on names.
+//  2. Boundary particles contribute to a fluid particle's density sum via
+//     the Akinci et al. (2012) pseudo-mass Psi_b = rho0_i * V_b instead
+//     of a real mass. Without this, a fluid particle resting against a
+//     wall sees a truncated kernel neighbourhood, registers well below
+//     rest density, and gets pushed *into* the wall by the resulting
+//     pressure deficit -- the classic reason clamp-and-damp boundaries
+//     leak.
+//
+// Boundary particles themselves are skipped as `i`: they are never
+// integrated, so their own density and pressure are never read.
+void computeDensityPressure(std::vector<Particle>& particles,
+                             const LinkedCell& grid,
+                             const CubicSplineKernel& kernel,
+                             const std::vector<TaitEOS>& eosByMaterial,
+                             const std::vector<float>& restDensityByMaterial);
 
 } // namespace aquasph

@@ -9,7 +9,7 @@ TEST(Integrator, SingleParticleFollowsParabolicTrajectoryUnderGravity) {
     // Effectively wall-less domain (bounds far away) so the trajectory is
     // unobstructed free fall.
     const BoundaryBox bounds{glm::vec3(-1000.0f), glm::vec3(1000.0f), 1.0f};
-    PredictorCorrectorIntegrator integrator(bounds, 1.0e6f);
+    PredictorCorrectorIntegrator integrator(bounds);
 
     std::vector<Particle> particles(1);
     particles[0].position = glm::vec3(0.0f);
@@ -42,7 +42,7 @@ TEST(Integrator, SingleParticleFollowsParabolicTrajectoryUnderGravity) {
 
 TEST(Integrator, WallReflectionKeepsParticleInBounds) {
     const BoundaryBox bounds{glm::vec3(-1.0f), glm::vec3(1.0f), 0.5f};
-    PredictorCorrectorIntegrator integrator(bounds, 1.0e6f);
+    PredictorCorrectorIntegrator integrator(bounds);
 
     std::vector<Particle> particles(1);
     particles[0].position = glm::vec3(0.0f, -0.99f, 0.0f);
@@ -66,7 +66,7 @@ TEST(Integrator, EnergyDoesNotBlowUpUnderRepeatedSteps) {
     // in a damped box (damping < 1) should never gain energy above its
     // starting potential energy, since every wall hit removes energy.
     const BoundaryBox bounds{glm::vec3(-1.0f), glm::vec3(1.0f), 0.5f};
-    PredictorCorrectorIntegrator integrator(bounds, 1.0e6f);
+    PredictorCorrectorIntegrator integrator(bounds);
 
     std::vector<Particle> particles(1);
     particles[0].position = glm::vec3(0.0f, 0.9f, 0.0f);

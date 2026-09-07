@@ -41,7 +41,8 @@ Config ConfigLoader::load(const std::string& path) {
     cfg.maxSteps       = j.value("max_steps", cfg.maxSteps);
     cfg.reportInterval = j.value("report_interval", cfg.reportInterval);
     cfg.wallDamping    = j.value("wall_damping", cfg.wallDamping);
-    cfg.maxSpeed       = j.value("max_speed", cfg.maxSpeed);
+    cfg.xsphEpsilon    = j.value("xsph_epsilon", cfg.xsphEpsilon);
+    cfg.referenceSpeed = j.value("reference_speed", cfg.referenceSpeed);
 
     if (j.contains("gravity"))    cfg.gravity   = readVec3(j["gravity"], cfg.gravity);
     if (j.contains("domain_min")) cfg.domainMin = readVec3(j["domain_min"], cfg.domainMin);

@@ -19,6 +19,9 @@ set(AQUASPH_TEST_SOURCES
     test_density.cpp
     test_neighbor.cpp
     test_integrator.cpp
+    test_forces.cpp
+    test_timestep.cpp
+    test_determinism.cpp
 )
 
 add_executable(aquasph_tests ${AQUASPH_TEST_SOURCES})

@@ -174,9 +174,12 @@ int main(int argc, char** argv) {
 
     CubicSplineKernel kernel(cfg.h);
     TaitEOS eos(cfg.restDensity, cfg.soundSpeed, cfg.gamma);
-    ForceParams forceParams{cfg.viscosity, cfg.gravity};
+    ForceParams forceParams;
+    forceParams.bodyAcceleration = cfg.gravity;
+    forceParams.viscosity = cfg.viscosity;
+    forceParams.xsphEpsilon = cfg.xsphEpsilon;
     BoundaryBox bounds{cfg.domainMin, cfg.domainMax, cfg.wallDamping};
-    PredictorCorrectorIntegrator integrator(bounds, cfg.maxSpeed);
+    PredictorCorrectorIntegrator integrator(bounds);
     LinkedCell grid(cfg.domainMin, cfg.domainMax, cfg.h);
 
     const auto recompute = [&](std::vector<Particle>& p) {
@@ -215,7 +218,7 @@ int main(int argc, char** argv) {
         }
         gl::glClear(gl::GL_COLOR_BUFFER_BIT | gl::GL_DEPTH_BUFFER_BIT);
 
-        renderer.updateParticles(particles, cfg.maxSpeed);
+        renderer.updateParticles(particles, cfg.referenceSpeed);
         const float aspect = height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
         renderer.draw(camera.viewMatrix(), camera.projectionMatrix(aspect), /*pointSizePixels=*/6.0f);
 

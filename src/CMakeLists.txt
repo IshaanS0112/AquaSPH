@@ -3,6 +3,8 @@ set(AQUASPH_CORE_SOURCES
     core/DensityPressure.cpp
     core/ForceCompute.cpp
     core/Integrator.cpp
+    core/TimeStep.cpp
+    core/BoundaryVolume.cpp
     core/DamBreakInit.cpp
     spatial/LinkedCell.cpp
     io/ConfigLoader.cpp
