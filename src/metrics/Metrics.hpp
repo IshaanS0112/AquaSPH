@@ -47,6 +47,29 @@ struct WavePrediction {
     bool linearTheoryValid = false;   // steepness comfortably below 1/20
 };
 
+// Fluid centre-of-mass track.
+//
+// WHY THIS EXISTS ALONGSIDE THE SURFACE PROBES. A probe measures the
+// topmost particle in a column, so its resolution floor is one particle
+// spacing. That is fine for a wave three or more spacings tall, and
+// useless below it -- and a standing wave small enough for linear theory
+// to apply is often exactly that small. Measured on the sloshing tank:
+// with the excitation reduced until the wave sat inside linear theory's
+// small-amplitude range, the wave amplitude fell BELOW one spacing and
+// the two end-wall probes returned periods differing by 56%.
+//
+// The centre of mass has no such floor. It is an average over every fluid
+// particle, so its signal-to-noise improves with particle count rather
+// than degrading with wave height, and for a sloshing tank its horizontal
+// component oscillates at exactly the mode being measured. It is the
+// right instrument for this measurement; the probes are the right
+// instrument for a wave flume, where the wave is tall and the question is
+// local.
+struct CentroidTrack {
+    std::vector<float> time;
+    std::vector<float> x, y, z;
+};
+
 struct SurgeSample {
     float time = 0.0f;
     float front = 0.0f;          // absolute position along the surge axis
@@ -97,6 +120,10 @@ struct MetricsReport {
 
     double initialFluidVolume = 0.0;
     double finalFluidVolume = 0.0;
+
+    CentroidTrack centroid;
+    // Period fitted from the horizontal centre-of-mass oscillation.
+    WaveMeasurement centroidOscillation;
 
     std::vector<ProbeSeries> probes;
     std::vector<WaveMeasurement> waveMeasurements;   // index-aligned with probes

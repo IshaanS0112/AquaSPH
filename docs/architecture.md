@@ -652,6 +652,7 @@ would attach and what it would actually cost.
 | **Porous boundaries** | A per-obstacle permeability scaling the boundary pressure term | A physically defensible model rather than "a wall that leaks on purpose" |
 | **Ocean wave spectra** | `WaveGenerator` already superposes components | A JONSWAP/Pierson-Moskowitz spectrum needs a flume long enough for the components to separate, which is a resolution problem, not an interface one |
 | **Mesh terrain** | A fourth `ShapeType` with `contains`/`containsEroded` | A robust point-in-mesh test and a watertightness story |
+| **Periodic domains** | A face mode, superficially | This one was *implemented and then removed*. Wrapping positions is four lines and produces a spurious free surface at the wrap plane, because separations are computed directly: a particle at one end has no neighbours at the other. A real periodic domain needs the minimum-image convention in `LinkedCell::getNeighbors` **and** in every separation computed by `DensityPressure`, `ForceCompute`, `BoundaryVolume` and the normals pass -- a change to the solver, not a face mode |
 | **CUDA / GPU solver** | The neighbour loops are already index-parallel with no cross-writes | The determinism guarantee. Bit-identical output across thread counts is a stated property, and reproducing it on a GPU means fixed-order reductions there too |
 
 The test that this list is honest: each entry names a real attachment

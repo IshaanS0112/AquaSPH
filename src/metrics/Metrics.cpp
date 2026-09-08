@@ -1,5 +1,6 @@
 #include "Metrics.hpp"
 #include "../core/Constants.hpp"
+#include "../core/ParallelReduce.hpp"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -107,6 +108,29 @@ void MetricsCollector::sample(const Simulation& sim) {
     if (!haveInitialVolume_) {
         report_.initialFluidVolume = sim.stats().fluidVolume;
         haveInitialVolume_ = true;
+    }
+
+    // --- fluid centre of mass -----------------------------------------
+    // Mass-weighted, and taken with the same deterministic reductions as
+    // everything else: this is asserted on, so it must not wobble with
+    // thread count.
+    const int fluidCount = static_cast<int>(particles.size() - begin);
+    if (fluidCount > 0) {
+        const double mass = reduce::deterministicSum(fluidCount, [&](int i) {
+            return particles[begin + static_cast<size_t>(i)].mass;
+        });
+        if (mass > 0.0) {
+            const auto axis = [&](int a) {
+                return reduce::deterministicSum(fluidCount, [&](int i) {
+                    const Particle& q = particles[begin + static_cast<size_t>(i)];
+                    return q.mass * q.position[a];
+                }) / mass;
+            };
+            report_.centroid.time.push_back(sim.time());
+            report_.centroid.x.push_back(static_cast<float>(axis(0)));
+            report_.centroid.y.push_back(static_cast<float>(axis(1)));
+            report_.centroid.z.push_back(static_cast<float>(axis(2)));
+        }
     }
 
     // --- surge front -------------------------------------------------
@@ -359,6 +383,15 @@ void MetricsCollector::finish(const Simulation& sim, double wallSeconds, double 
     for (const WaveGenerator& wg : scenario_->waveGenerators) {
         report_.wavePredictions.push_back(predictWave(wg, g));
     }
+
+    // The horizontal centre-of-mass oscillation, fitted with the same
+    // estimator as a wave probe. `depth` is passed as 0 because a
+    // centroid track has no free surface to derive a wavelength from --
+    // only the period and amplitude of the mode are meaningful here.
+    if (report_.centroid.time.size() >= 8) {
+        report_.centroidOscillation =
+            measureWaveTrain(report_.centroid.time, report_.centroid.x, 0.0f, g);
+    }
 }
 
 std::string MetricsReport::toJson() const {
@@ -416,6 +449,26 @@ std::string MetricsReport::toJson() const {
     o << "    \"initial_m3\": " << num(initialFluidVolume) << ",\n";
     o << "    \"final_m3\": " << num(finalFluidVolume) << "\n";
     o << "  }";
+
+    if (!centroid.time.empty()) {
+        o << ",\n  \"centroid\": {\n";
+        if (centroidOscillation.valid) {
+            o << "    \"oscillation\": {\"amplitude\": " << num(centroidOscillation.amplitude)
+              << ", \"period\": " << num(centroidOscillation.period)
+              << ", \"mean\": " << num(centroidOscillation.meanLevel)
+              << ", \"cycles_counted\": " << centroidOscillation.wavesCounted << "},\n";
+        }
+        o << "    \"t\": [";
+        for (size_t i = 0; i < centroid.time.size(); ++i)
+            o << num(centroid.time[i]) << (i + 1 < centroid.time.size() ? ", " : "");
+        o << "],\n    \"x\": [";
+        for (size_t i = 0; i < centroid.x.size(); ++i)
+            o << num(centroid.x[i]) << (i + 1 < centroid.x.size() ? ", " : "");
+        o << "],\n    \"y\": [";
+        for (size_t i = 0; i < centroid.y.size(); ++i)
+            o << num(centroid.y[i]) << (i + 1 < centroid.y.size() ? ", " : "");
+        o << "]\n  }";
+    }
 
     if (!surge.empty()) {
         o << ",\n  \"surge_front\": [\n";

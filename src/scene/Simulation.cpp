@@ -78,6 +78,8 @@ Simulation::Simulation(const Scenario& scenario, size_t maxParticles)
     }
     if (!scenario_.sinks.empty()) needsCompaction_ = true;
 
+    lastRebuildOffset_.assign(scenario_.obstacles.size(), glm::vec3(0.0f));
+
     buildBoundary();
     buildFluid();
 
@@ -369,12 +371,36 @@ const StepStats& Simulation::step() {
         grid_->build(particles_);
     }
     if (anyMovingObstacle_) {
-        // Rigid translation does not change distances *within* one
-        // obstacle, but it does change them between a moving paddle and
-        // the tank walls it slides past, so the volumes are refreshed
-        // while anything is moving. Static scenarios never pay this.
-        StageTimer t(&profile_.boundaryVolumes, profiling_);
-        computeBoundaryVolumes(particles_, *grid_, *kernel_, static_cast<int>(boundaryCount_));
+        // WHY NOT EVERY STEP. A rigid translation does not change
+        // distances *within* one obstacle at all -- only between a moving
+        // paddle and the tank walls it slides past -- so the Akinci
+        // volumes barely change from one step to the next. Recomputing
+        // them unconditionally is a full O(N_boundary * neighbours) pass
+        // per step, comparable in cost to the density pass. Measured on
+        // the wave tank at 17,000 boundary particles it was the single
+        // largest stage in the run, and it is why a 4.5 s flume was
+        // taking longer than the 218k-particle dam break.
+        //
+        // The volumes are instead refreshed once the largest obstacle
+        // displacement since the last rebuild exceeds a quarter of the
+        // boundary spacing -- the scale at which inter-particle distances
+        // could have changed enough to matter. That bounds staleness by
+        // geometry rather than by an arbitrary step count, so a fast
+        // paddle rebuilds often and a slow gate rarely, and it stays
+        // exactly reproducible because the trigger is a pure function of
+        // time.
+        float drift = 0.0f;
+        for (size_t i = 0; i < scenario_.obstacles.size(); ++i) {
+            const glm::vec3 offset = scenario_.obstacles[i].motion.translationAt(time_);
+            drift = std::max(drift, glm::length(offset - lastRebuildOffset_[i]));
+        }
+        if (drift >= 0.25f * boundarySpacing_) {
+            StageTimer t(&profile_.boundaryVolumes, profiling_);
+            computeBoundaryVolumes(particles_, *grid_, *kernel_, static_cast<int>(boundaryCount_));
+            for (size_t i = 0; i < scenario_.obstacles.size(); ++i) {
+                lastRebuildOffset_[i] = scenario_.obstacles[i].motion.translationAt(time_);
+            }
+        }
     }
 
     const int firstFluid = static_cast<int>(boundaryCount_);

@@ -82,7 +82,7 @@ not a tsunami model.
 "domain": {
   "min": [0.0, 0.0, 0.0],
   "max": [1.6, 0.6, 0.3],
-  "faces": {                       // solid | open | periodic, per face
+  "faces": {                       // solid | open, per face
     "x_min": "solid", "x_max": "open",
     "y_min": "solid", "y_max": "open",
     "z_min": "solid", "z_max": "solid"
@@ -98,7 +98,17 @@ not a tsunami model.
 - **`open`** faces are exits: particles that cross are removed, and are
   *not* counted as instability. Without at least one open face or a sink,
   any scenario with an emitter fills up and stops meaning anything.
-- **`periodic`** wraps, for channels and infinite flumes.
+**There is no `periodic` mode**, and its absence is deliberate rather
+than an omission. Wrapping a particle's position at a face is four lines
+and was implemented first; it does not produce a periodic domain. The
+neighbour search computes separations directly, so a particle near one end
+of the axis has no neighbours at the other — it sees a free surface
+exactly where the domain is supposed to be continuous. Measured on a
+driven channel, more than half the fluid was ejected within half a second.
+A real periodic domain needs the minimum-image convention threaded through
+the neighbour search and every force loop; it is listed as a Tier 3
+extension point in `docs/architecture.md`, and asking for `"periodic"`
+prints that explanation rather than silently substituting a wall.
 
 Setting `y_max` to `open` on a scenario where nothing reaches the ceiling
 is worth doing: it removes a whole face of boundary particles, which are

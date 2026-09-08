@@ -12,7 +12,10 @@
 // as a compile error rather than as a vague feeling.
 #include <gtest/gtest.h>
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 #include "scene/Scenario.hpp"
+#include "scene/ScenarioLoader.hpp"
 #include "scene/Simulation.hpp"
 
 using namespace aquasph;
@@ -233,46 +236,35 @@ TEST(Extensibility, EmitterOnlyScenarioWithOpenOutflow) {
     EXPECT_EQ(sim.unstableCount(), 0);
 }
 
-// A periodic channel: the third face mode, which no shipped scenario uses.
-// It is here because an unused code path is an untested one, and the face
-// modes are the kind of thing that is easy to get wrong in one direction
-// only.
-TEST(Extensibility, PeriodicFacesWrapFluidInsteadOfLosingIt) {
+// The face mode that is NOT there, and why this test exists.
+//
+// A `periodic` mode was implemented first, as four lines wrapping a
+// particle's position at the domain face. It does not produce a periodic
+// domain: the neighbour search computes separations directly, so a
+// particle near one end has no neighbours at the other, sees a free
+// surface exactly where the domain is meant to be continuous, and the
+// fluid piles up at the wrap plane. This test caught it -- a driven
+// channel lost more than half its fluid through the open lid within half
+// a second -- and the mode was removed rather than shipped.
+//
+// What remains is the guarantee that asking for it says so, loudly,
+// instead of silently substituting something else.
+TEST(Extensibility, PeriodicFacesAreRejectedRatherThanSilentlyApproximated) {
+    const char* kJson = R"JSON({
+      "name": "periodic_request",
+      "domain": { "min": [0,0,0], "max": [0.4,0.2,0.2],
+                   "faces": { "x_min": "periodic", "x_max": "periodic" } }
+    })JSON";
+    const std::string path = "unit_test_periodic.json";
+    { std::ofstream f(path); f << kJson; }
+
     Scenario s;
-    s.name = "extensibility_periodic";
-    s.domain.min = glm::vec3(0.0f);
-    s.domain.max = glm::vec3(0.4f, 0.2f, 0.2f);
-    s.domain.faces[0] = FaceMode::Periodic;   // -x
-    s.domain.faces[1] = FaceMode::Periodic;   // +x
-    s.domain.faces[3] = FaceMode::Open;
+    std::string err;
+    ASSERT_TRUE(ScenarioLoader::loadFile(path, s, err)) << err;
+    std::remove(path.c_str());
 
-    s.materials = MaterialTable{makeMaterial("water", 1000.0f, 1.0f)};
-
-    FluidRegion slab;
-    slab.shape.type = ShapeType::Box;
-    slab.shape.min = glm::vec3(0.0f, 0.0f, 0.0f);
-    slab.shape.max = glm::vec3(0.4f, 0.06f, 0.2f);
-    slab.velocity = glm::vec3(1.5f, 0.0f, 0.0f);   // driven along the channel
-    s.fluidRegions.push_back(slab);
-
-    s.numerics.h = 0.02f;
-    s.numerics.spacingRatio = 0.5f;
-    s.duration.simulatedTime = 0.5f;
-    s.duration.outputInterval = 0.05f;
-
-    Simulation sim(s);
-    const int initial = sim.stats().fluidCount;
-    ASSERT_GT(initial, 100);
-
-    while (!sim.finished()) sim.step();
-
-    // Nothing is lost through a periodic face -- the fluid travels several
-    // channel lengths in this time and every particle must still be there.
-    EXPECT_EQ(sim.stats().fluidCount, initial);
-    EXPECT_EQ(sim.unstableCount(), 0);
-    for (size_t i = sim.boundaryCount(); i < sim.particles().size(); ++i) {
-        const float x = sim.particles()[i].position.x;
-        EXPECT_GE(x, s.domain.min.x - 0.01f);
-        EXPECT_LE(x, s.domain.max.x + 0.01f);
-    }
+    // Falls back to a real wall, which is containment the solver can
+    // actually honour, rather than a wrap it cannot.
+    EXPECT_EQ(s.domain.faces[0], FaceMode::Solid);
+    EXPECT_EQ(s.domain.faces[1], FaceMode::Solid);
 }

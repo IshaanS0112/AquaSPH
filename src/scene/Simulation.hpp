@@ -140,6 +140,10 @@ private:
     float prevDt_ = 0.0f;
     bool hitCeiling_ = false;
     bool anyMovingObstacle_ = false;
+    // Obstacle offsets as of the last boundary-volume rebuild. See the
+    // note at the recompute site in step() for why the rebuild is driven
+    // by displacement rather than run every step.
+    std::vector<glm::vec3> lastRebuildOffset_;
     bool needsCompaction_ = false;
     glm::vec3 bodyAcceleration_{0.0f};
 

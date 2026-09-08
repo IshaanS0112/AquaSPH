@@ -29,7 +29,18 @@ glm::vec3 readVec3(const json& j, const char* key, const glm::vec3& def) {
 FaceMode faceModeOf(const std::string& s, const std::string& where) {
     if (s == "solid") return FaceMode::Solid;
     if (s == "open") return FaceMode::Open;
-    if (s == "periodic") return FaceMode::Periodic;
+    if (s == "periodic") {
+        // Named explicitly rather than falling into the generic "unknown
+        // mode" branch, because someone asking for it deserves to know it
+        // was considered and why it is not there -- see the note on
+        // FaceMode in core/Integrator.hpp.
+        std::cerr << "[ScenarioLoader] Face mode 'periodic' is not supported (" << where
+                  << "). Wrapping positions without a minimum-image convention in the "
+                     "neighbour search gives a spurious free surface at the wrap plane, "
+                     "not a periodic domain; see docs/architecture.md, Tier 3 extension "
+                     "points. Using 'solid'.\n";
+        return FaceMode::Solid;
+    }
     std::cerr << "[ScenarioLoader] Unknown face mode '" << s << "' in " << where
               << "; using 'solid'.\n";
     return FaceMode::Solid;

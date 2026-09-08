@@ -114,25 +114,41 @@ def sloshing_section(tank_length=0.6, depth=0.1):
     if not m:
         return ("_No sloshing_tank metrics found._\n", shallow, dispersive, None)
 
-    measured = None
-    for probe in m.get("probes", []):
-        meas = probe.get("measured")
-        if meas and meas.get("waves_counted", 0) >= 2:
-            measured = meas["period"]
-            break
+    # The CENTROID is the primary instrument here, not the wall probes. A
+    # probe reads the topmost particle in a column, so its floor is one
+    # particle spacing -- and a standing wave small enough for linear
+    # theory to apply is smaller than that. The centre of mass averages
+    # over every fluid particle and has no such floor. The probes are
+    # reported alongside precisely so the difference is visible.
+    osc = (m.get("centroid") or {}).get("oscillation") or {}
+    measured = osc.get("period")
+    cycles = osc.get("cycles_counted", 0)
 
     out = [
         "| quantity | value |",
         "|---|---:|",
         f"| tank length L | {tank_length:.3f} m |",
         f"| still depth d | {depth:.3f} m |",
-        f"| shallow-water period 2L/sqrt(gd) | {shallow:.3f} s |",
+        f"| shallow-water period `2L/sqrt(gd)` | {shallow:.3f} s |",
         f"| linear-dispersion first mode | {dispersive:.3f} s |",
-        f"| measured (wall probe, zero up-crossings) | {fmt(measured, 3)} s |",
+        f"| **measured** (fluid centre of mass, {cycles} cycles) | **{fmt(measured, 3)} s** |",
     ]
     if measured:
-        out.append(f"| error vs shallow-water | {rel_error(measured, shallow):+.1f}% |")
-        out.append(f"| error vs linear dispersion | {rel_error(measured, dispersive):+.1f}% |")
+        out.append(f"| error vs shallow-water | **{rel_error(measured, shallow):+.1f}%** |")
+        out.append(f"| error vs linear dispersion | **{rel_error(measured, dispersive):+.1f}%** |")
+
+    out.append("")
+    out.append("Surface probes, for comparison — and as evidence of why they are "
+                "not the instrument used here:")
+    out.append("")
+    out.append("| probe | amplitude (m) | period (s) | crossings counted |")
+    out.append("|---|---:|---:|---:|")
+    for probe in m.get("probes", []):
+        meas = probe.get("measured")
+        if not meas:
+            continue
+        out.append(f"| {probe['name']} | {meas['amplitude']:.4f} | "
+                   f"{meas['period']:.3f} | {meas['waves_counted']} |")
     return "\n".join(out) + "\n", shallow, dispersive, measured
 
 
@@ -177,11 +193,19 @@ def write_plot(pts, exp):
     """Hand-written SVG. No plotting library: one more dependency for one
     chart, and an SVG in the repository diffs and renders on GitHub."""
     os.makedirs(os.path.dirname(PLOT), exist_ok=True)
-    W, H, PAD = 620, 400, 55
+    W, H, PAD = 640, 400, 58
     if not pts:
         return
-    tmax = max(3.2, max(p[0] for p in pts))
-    zmax = max(6.0, max(p[1] for p in pts))
+
+    # The tank is finite: once the surge reaches the far wall, Z stops
+    # growing and the record says nothing further about propagation. The
+    # plot is cut just past that point rather than showing a long flat
+    # tail that would make the agreement look better than it is.
+    zlimit = max(p[1] for p in pts)
+    saturated = [t for (t, z) in pts if z >= zlimit * 0.985]
+    tmax = min(saturated) * 1.05 if saturated else max(p[0] for p in pts)
+    tmax = max(tmax, 3.0)
+    zmax = max(2.0, zlimit * 1.05, ritter_Z(tmax) * 0.55)
 
     def sx(T):
         return PAD + (W - 2 * PAD) * T / tmax
@@ -218,22 +242,30 @@ def write_plot(pts, exp):
         s.append(f'<circle cx="{sx(T):.1f}" cy="{sy(min(Z, zmax)):.1f}" r="3.5" '
                  f'fill="none" stroke="#c8d3e0" stroke-width="1.6"/>')
 
+    # The far wall, so a reader can see where the measurement stops being
+    # about propagation and starts being about the tank.
+    if zlimit <= zmax:
+        s.append(f'<line x1="{PAD}" y1="{sy(zlimit):.1f}" x2="{W-PAD}" y2="{sy(zlimit):.1f}" '
+                 f'stroke="#5a6472" stroke-width="1" stroke-dasharray="3 4"/>')
+        s.append(f'<text x="{W-PAD-4:.0f}" y="{sy(zlimit)-6:.1f}" fill="#5a6472" '
+                 f'text-anchor="end" font-size="11">far wall</text>')
+
     s.append(f'<text x="{W/2:.0f}" y="{H-12}" fill="#c8d3e0" text-anchor="middle">'
              f'T = t sqrt(2g/a)</text>')
     s.append(f'<text x="16" y="{H/2:.0f}" fill="#c8d3e0" text-anchor="middle" '
              f'transform="rotate(-90 16 {H/2:.0f})">Z = x_front / a</text>')
     s.append(f'<text x="{PAD}" y="{PAD-22}" fill="#c8d3e0" font-size="13">'
              f'Dam-break surge front</text>')
-    s.append(f'<line x1="{W-215}" y1="{PAD-14}" x2="{W-190}" y2="{PAD-14}" '
+    s.append(f'<line x1="{W-235}" y1="{PAD-14}" x2="{W-210}" y2="{PAD-14}" '
              f'stroke="#4fc3d9" stroke-width="2.5"/>')
     s.append(f'<text x="{W-185}" y="{PAD-10}" fill="#8b93a1">AquaSPH</text>')
-    s.append(f'<line x1="{W-215}" y1="{PAD+2}" x2="{W-190}" y2="{PAD+2}" '
+    s.append(f'<line x1="{W-235}" y1="{PAD+2}" x2="{W-210}" y2="{PAD+2}" '
              f'stroke="#e0a458" stroke-width="2" stroke-dasharray="7 5"/>')
-    s.append(f'<text x="{W-185}" y="{PAD+6}" fill="#8b93a1">Ritter (1892)</text>')
+    s.append(f'<text x="{W-205}" y="{PAD+6}" fill="#8b93a1">Ritter (1892), analytic</text>')
     if exp:
-        s.append(f'<circle cx="{W-203}" cy="{PAD+18}" r="3.5" fill="none" '
+        s.append(f'<circle cx="{W-223}" cy="{PAD+18}" r="3.5" fill="none" '
                  f'stroke="#c8d3e0" stroke-width="1.6"/>')
-        s.append(f'<text x="{W-185}" y="{PAD+22}" fill="#8b93a1">Martin &amp; Moyce (1952)</text>')
+        s.append(f'<text x="{W-205}" y="{PAD+22}" fill="#8b93a1">Martin &amp; Moyce (1952)</text>')
     s.append('</svg>')
 
     with open(PLOT, "w") as f:

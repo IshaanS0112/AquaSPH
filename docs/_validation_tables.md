@@ -17,13 +17,27 @@
 |---|---:|
 | tank length L | 0.600 m |
 | still depth d | 0.100 m |
-| shallow-water period 2L/sqrt(gd) | 1.212 s |
+| shallow-water period `2L/sqrt(gd)` | 1.212 s |
 | linear-dispersion first mode | 1.265 s |
-| measured (wall probe, zero up-crossings) | 1.154 s |
-| error vs shallow-water | -4.8% |
-| error vs linear dispersion | -8.8% |
+| **measured** (fluid centre of mass, 7 cycles) | **1.200 s** |
+| error vs shallow-water | **-1.0%** |
+| error vs linear dispersion | **-5.1%** |
+
+Surface probes, for comparison — and as evidence of why they are not the instrument used here:
+
+| probe | amplitude (m) | period (s) | crossings counted |
+|---|---:|---:|---:|
+| left_wall | 0.0067 | 0.949 | 8 |
+| right_wall | 0.0042 | 0.607 | 14 |
 
 ## Wave generator fidelity
 
-_No controlled_wave_tank metrics found._
+| probe | x (m) | amplitude (m) | period (s) | celerity (m/s) | waves |
+|---|---:|---:|---:|---:|---:|
+| wg1 | 0.80 | 0.0148 | 0.915 | 1.176 | 3 |
+| wg2 | 1.40 | 0.0093 | 0.885 | 1.161 | 3 |
+| wg3 | 2.00 | 0.0083 | 1.681 | 1.334 | 2 |
+| **linear theory** | -- | 0.0231 | 0.900 | 1.169 | -- |
+
+Commanded paddle period 0.900 s, still depth 0.200 m, predicted wavelength 1.052 m, predicted steepness H/L = 0.0439 (within the small-amplitude range where linear theory applies).
 

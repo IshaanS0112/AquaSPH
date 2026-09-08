@@ -99,7 +99,6 @@ void PredictorCorrectorIntegrator::applyBoundary(Particle& p, long long& events,
     const float tol = bounds_.tolerance;
     auto handle = [&](float& pos, float& vel, float lo, float hi,
                        FaceMode loMode, FaceMode hiMode) {
-        const float span = hi - lo;
         if (pos < lo - tol) {
             switch (loMode) {
                 case FaceMode::Solid:
@@ -109,9 +108,6 @@ void PredictorCorrectorIntegrator::applyBoundary(Particle& p, long long& events,
                     break;
                 case FaceMode::Open:
                     outflow = true;
-                    break;
-                case FaceMode::Periodic:
-                    if (span > 0.0f) pos += span;
                     break;
             }
         } else if (pos > hi + tol) {
@@ -123,9 +119,6 @@ void PredictorCorrectorIntegrator::applyBoundary(Particle& p, long long& events,
                     break;
                 case FaceMode::Open:
                     outflow = true;
-                    break;
-                case FaceMode::Periodic:
-                    if (span > 0.0f) pos -= span;
                     break;
             }
         }

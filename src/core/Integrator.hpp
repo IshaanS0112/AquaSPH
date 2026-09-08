@@ -22,8 +22,26 @@ enum class FaceMode {
     // what makes floods, rivers and channels meaningful -- without an
     // outflow, any open-domain scenario just fills up.
     Open,
-    // Wrap-around, for periodic channels and infinite wave flumes.
-    Periodic,
+
+    // THERE IS NO Periodic MODE, and its absence is deliberate.
+    //
+    // Wrapping a particle's POSITION at a domain face is four lines and
+    // was implemented first. It does not produce a periodic domain. The
+    // neighbour search and every force loop compute separations as
+    // r_ij = x_i - x_j directly, so a particle near one end of the
+    // "periodic" axis has no neighbours at the other end: it sees a free
+    // surface exactly where the domain is supposed to be continuous, its
+    // density collapses, and fluid piles up at the wrap plane. Measured
+    // on a driven channel, more than half the fluid was ejected through
+    // the open lid within half a second.
+    //
+    // A real periodic domain needs the minimum-image convention threaded
+    // through LinkedCell::getNeighbors AND every separation computed in
+    // DensityPressure, ForceCompute, BoundaryVolume and the surface-normal
+    // pass -- an invasive change to the solver, not a face mode. It is
+    // listed as a Tier 3 extension point in docs/architecture.md with that
+    // cost stated, and the loader rejects "periodic" with the same
+    // explanation rather than silently substituting a wall.
 };
 
 struct BoundaryBox {

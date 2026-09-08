@@ -90,12 +90,24 @@ at 6.4 when the front reaches the far wall (around `T ≈ 8.5`). Only
 
 ### Result
 
-See `docs/_validation_tables.md` for the generated table and
-`docs/img/dam_break_surge_front.svg` for the plot.
+![Dam-break surge front](img/dam_break_surge_front.svg)
 
-**The simulated front runs behind Ritter, by roughly a factor of two in
-propagation speed over `1 < T < 4`.** That is a large discrepancy and it
-is not a bug. Three separate causes, in decreasing order of size:
+`dam_break`, `--quality medium`, 21,525 fluid + 39,314 boundary
+particles, 9,046 steps, four threads:
+
+| `T = t sqrt(2g/a)` | `Z` measured | `Z` Ritter (analytic) | difference |
+|---:|---:|---:|---:|
+| 0.54 | 1.196 | 2.071 | −42.3% |
+| 0.98 | 1.490 | 2.964 | −49.7% |
+| 1.52 | 1.922 | 4.035 | −52.4% |
+| 1.96 | 2.311 | 4.926 | −53.1% |
+| 2.50 | 2.817 | 5.993 | −53.0% |
+| 3.03 | 3.368 | 7.061 | −52.3% |
+
+**The simulated front runs behind Ritter by about a factor of two in
+propagation speed, and settles to a stable −52% once past the initial
+transient.** That is a large discrepancy and it is not a bug. Three
+separate causes, in decreasing order of size:
 
 **1. Ritter is not an achievable upper bound at early time.** The
 shallow-water equations have no vertical acceleration, so at `t = 0+` the
@@ -200,21 +212,91 @@ recorded at a wall probe, de-meaned, with the crossings linearly
 interpolated so the period is not quantised to the 20 ms sample interval.
 Up-crossings only, so each period is counted once.
 
+### The instrument: centre of mass, not a surface probe
+
+This is the part worth reading, because the first two attempts at this
+measurement were both wrong and both looked plausible.
+
+A surface probe reads the topmost fluid particle in a vertical column, so
+its resolution floor is **one particle spacing** — here 10 mm on a 100 mm
+depth. A standing wave small enough for linear theory to apply is smaller
+than that. Reducing the excitation until the wave sat inside the theory's
+small-amplitude range therefore pushed it *below the probe's resolution*,
+and the two end-wall probes returned periods 56% apart.
+
+The fluid's **centre of mass** has no such floor: it is a mass-weighted
+average over every fluid particle, so its signal-to-noise improves with
+particle count rather than degrading with wave height, and its horizontal
+component oscillates at exactly the mode being measured. That is the
+instrument used here. The probes are still reported, as evidence.
+
 ### Result
 
-See `docs/_validation_tables.md`.
+`sloshing_tank`, `--quality medium`, 14,091 fluid + 14,602 boundary
+particles, 9 s of simulated time, 28,424 steps:
+
+| quantity | value |
+|---|---:|
+| tank length `L` | 0.600 m |
+| still depth `d` | 0.100 m |
+| shallow-water period `2L/sqrt(gd)` | 1.212 s |
+| linear-dispersion first mode | 1.265 s |
+| **measured** (fluid centre of mass, 7 cycles) | **1.200 s** |
+| **error vs shallow-water** | **−1.0%** |
+| **error vs linear dispersion** | **−5.1%** |
+
+Wave amplitude at the centre of mass is 4.5 mm on a 100 mm depth — 4.5%,
+comfortably inside the small-amplitude regime the analytical results
+assume.
+
+The surface probes, for comparison, and as evidence of the point above:
+
+| probe | amplitude (m) | period (s) | crossings counted |
+|---|---:|---:|---:|
+| `left_wall` | 0.0067 | 0.949 | 8 |
+| `right_wall` | 0.0042 | 0.607 | 14 |
+
+Both amplitudes are below one particle spacing. The two probes disagree
+with each other by 56% and with the centroid by 21% and 49%.
 
 ### Interpretation
 
-The measured period should sit close to `T_linear` and slightly above
-both analytical values. Two effects push it up: finite amplitude (the
-analytical results are small-amplitude) and the fluid's effective depth
-being slightly less than `d` where it meets the no-slip walls.
+**−1.0% against the shallow-water result** is a good agreement, and the
+better of the two comparisons is worth explaining rather than simply
+claiming. The dispersive formula ought to be the more accurate reference
+at `d/L = 1/6`, and the measured period sits 5% below it. The most likely
+reason is that the tank's *effective* length is slightly less than 0.600
+m — the outermost fluid particles rest about half a spacing inside the
+nominal wall — and both formulas scale with `L`, the shallow-water one
+as `sqrt(L)` and the dispersive one more strongly. A 10 mm shortening
+moves the shallow-water prediction to 1.201 s and the dispersive one to
+about 1.246 s. That accounts for the shallow-water agreement almost
+exactly and closes about a third of the dispersive gap.
+
+**This is offered as the likely explanation, not a demonstrated one.**
+Confirming it means a resolution sweep — if it is a discretisation
+effect, the gap should shrink as the spacing does. That is a
+straightforward experiment and it has not been run.
 
 **The decay rate is not validated and is not predictive.** Wall friction
 here is a single coefficient scaling a viscous term, not a resolved
 boundary layer, so how fast the sloshing dies away is a property of the
 numerics as much as of the fluid. Only the period is being claimed.
+
+### Two scenario parameters set for measurability, and stated as such
+
+Both are in the scenario's own `approximation` field, because both affect
+what may be concluded:
+
+- **Artificial viscosity 0.5 Pa·s**, lower than the dam break's. At 2.0
+  Pa·s the tank damped out inside three cycles and the period fit rested
+  on a single interval. Chosen on the *cycle count*, which is visible
+  directly in the elevation record, not on whether the fitted period
+  agreed with theory.
+- **Impulse 0.6 m/s² for 0.25 s.** At 2.0 m/s² the resulting wave reached
+  22% of the still depth — far outside the small-amplitude regime the
+  comparison assumes, where finite-amplitude steepening shortens the
+  period. Chosen on the *amplitude-to-depth ratio*.
 
 ---
 
@@ -254,7 +336,40 @@ contaminates the whole record — the ramp is not cosmetic.
 
 ### Result
 
-See `docs/_validation_tables.md`.
+`controlled_wave_tank`, `--quality medium`, 36,154 fluid + 25,209
+boundary particles, 4.5 s, 9,924 steps. Commanded paddle period 0.900 s,
+amplitude 0.020 m, still depth 0.200 m:
+
+| gauge | x (m) | amplitude (m) | period (s) | celerity (m/s) | cycles |
+|---|---:|---:|---:|---:|---:|
+| `wg1` | 0.80 | 0.0148 | **0.915** | **1.176** | 3 |
+| `wg2` | 1.40 | 0.0093 | **0.885** | **1.161** | 3 |
+| `wg3` | 2.00 | 0.0083 | 1.681 | 1.334 | 2 |
+| **linear (Biesel) theory** | — | 0.0231 | 0.900 | 1.169 | — |
+
+Predicted wavelength 1.052 m, predicted steepness `H/L` = 0.044 —
+**inside** the small-amplitude range where linear theory applies.
+
+- **Period: +1.7% and −1.7%** at the two gauges with three full cycles.
+  The paddle commands 0.900 s and the fluid delivers it.
+- **Celerity: +0.6% and −0.7%** against the dispersion relation. This is
+  the strongest single result in this document: the wave's *propagation
+  speed* is an emergent property of the solver, not an input, and it
+  lands within a percent of linear theory.
+- **Amplitude: −36%.** Resolution-limited — see below. Do not read this
+  as a 36% error in the wavemaker transfer function.
+- **`wg3` is not usable.** At 2.0 m the first wave arrives about 2.5 s
+  into a 4.5 s run, so only two cycles are recorded and the fit is
+  meaningless. It is reported rather than dropped, because a gauge that
+  has not seen enough waves should look obviously wrong rather than be
+  quietly excluded.
+
+One thing the run also shows and this document should not skip: peak
+density reaches 1607 kg/m³ and peak acceleration 1.8 × 10⁴ m/s², both
+localised at the paddle face where the moving boundary compresses fluid
+against it. The run is stable and the propagating wave is unaffected —
+the gauges are two to ten water depths downstream — but the near-paddle
+field is not a converged solution and nothing should be read off it.
 
 ### What limits this measurement, stated up front
 
@@ -327,6 +442,6 @@ animation. They are not emitted as a flood map.
 |---|---|---|
 | `dam_break` | Ritter (1892) analytical, derived above | **Compared.** Front runs behind the analytical bound; magnitude, three causes and a viscosity sensitivity sweep reported |
 | `dam_break` | Martin & Moyce (1952) experimental | **Not compared.** Reference data unavailable; scaffolding and instructions shipped rather than invented numbers |
-| `sloshing_tank` | shallow-water and linear-dispersion periods, derived above | **Compared.** Period only; decay rate explicitly not claimed |
-| `controlled_wave_tank` | linear (Biesel) piston-wavemaker theory | **Compared.** Period and celerity meaningful; amplitude limited by resolution, and the limit is quantified |
+| `sloshing_tank` | shallow-water and linear-dispersion periods, derived above | **Compared: −1.0% / −5.1%.** Period only; decay rate explicitly not claimed |
+| `controlled_wave_tank` | linear (Biesel) piston-wavemaker theory | **Compared: period ±1.7%, celerity ±0.7%.** Amplitude is resolution-limited and the limit is quantified rather than hidden |
 | Tier 2 flood scenarios | none | **Not validated.** Metrics reported as internally consistent measurements, never as predictions |

@@ -233,7 +233,7 @@ TEST(ScenarioLoaderTest, RoundTripsACompositionOfPrimitives) {
       "approximation": "none, it is a test",
       "domain": {
         "min": [0, 0, 0], "max": [2, 1, 1],
-        "faces": { "x_max": "open", "z_min": "periodic" },
+        "faces": { "x_max": "open", "z_min": "open" },
         "boundary_layers": 3
       },
       "gravity": [0, -9.0, 0],
@@ -281,7 +281,7 @@ TEST(ScenarioLoaderTest, RoundTripsACompositionOfPrimitives) {
     EXPECT_EQ(s.name, "unit_test_scenario");
     EXPECT_EQ(s.tier, Tier::Two);
     EXPECT_EQ(s.domain.faces[1], FaceMode::Open);
-    EXPECT_EQ(s.domain.faces[4], FaceMode::Periodic);
+    EXPECT_EQ(s.domain.faces[4], FaceMode::Open);
     EXPECT_EQ(s.domain.boundaryLayers, 3);
     EXPECT_FLOAT_EQ(s.gravity.y, -9.0f);
 
