@@ -297,12 +297,51 @@ A vertical nozzle jet rises, breaks up, and falls back into its basin.
 
 ## The contact sheet
 
-`scripts/make_gallery.sh` assembles one still per scenario into
-`contact_sheet.png`, taken 75% of the way through each run.
+![Contact sheet](img/contact_sheet.png)
 
-It is meant to be read as a comparison, which is only possible because
+*All fourteen scenarios, `--quality low`, 960×540, four threads, offline
+render on Mesa `llvmpipe` (software rasteriser, no GPU) under Xvfb. Each
+still is taken 75% of the way through its run. **Not real-time** — see
+the per-scenario cost table in `benchmarks/scaling_results.md`.*
+
+`scripts/make_gallery.sh` produces this, plus an MP4 and a looping GIF per
+scenario. Only the contact sheet is committed; the clips are about 39 MB
+and the frame sequences about 900 MB, which do not belong in git.
+
+It is meant to be read as a comparison, and that is only possible because
 every scenario shares the same camera framing convention (38° yaw, ~20°
 pitch, three-quarter view), the same palette, the same three-point
 lighting and the same floor and grid. **What differs between tiles is the
 physics.** If two tiles look alike, that is a finding about the
 simulations, not about the art direction.
+
+Reading across it, left to right and top to bottom: `coastal_wave`,
+`container_fill`, `controlled_wave_tank`, `dam_break`;
+`double_dam_break`, `droplet_impact`, `flash_flood`, `flood`; `fountain`,
+`obstacle_flow`, `sloshing_tank`, `spillway`; `tsunami_pulse`,
+`waterfall`.
+
+### What this sheet shows honestly, including where it is unflattering
+
+- **The obstacles read as solids.** The cylinder in `obstacle_flow`, the
+  weir in `spillway`, the ledge in `waterfall` and the terrain in `flood`
+  and `flash_flood` are all drawn from their own boundary particles, so
+  what you see is exactly the geometry the solver has.
+- **`low` does not resolve a surface, and that is the point of the
+  preset.** At 2,000–12,000 fluid particles the screen-space
+  reconstruction is visibly granular: individual impostors are
+  distinguishable, and the `droplet_impact` crown does not form because
+  the droplet is only a few hundred particles. This is a *resolution*
+  limit, not a shader limit — raising the blur radius makes it worse, not
+  better. `--quality high` is the showcase preset and is roughly 35× the
+  cost.
+- **Emitter layering is visible.** In `container_fill` the falling inlet
+  stream reads as a stack of discrete discs rather than a continuous jet.
+  That is real: the emitter releases one lattice layer per particle
+  spacing of accumulated stream displacement, and at `low` the layers are
+  wider apart than the impostors can bridge. It closes up at finer
+  resolution; it is called out here rather than cropped out of frame.
+- **`fountain` and `waterfall` fragment into visible particles.** Also
+  real, and also resolution: jet break-up happens at scales far below the
+  particle spacing, so the jet fragments at the resolution limit rather
+  than at a physical Rayleigh–Plateau wavelength.

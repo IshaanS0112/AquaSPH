@@ -85,6 +85,11 @@ architecture leaves room; **no claims are made.**
 [`docs/architecture.md`](docs/architecture.md) says where each would
 attach and why none is a weekend's work.
 
+![Contact sheet](docs/img/contact_sheet.png)
+
+*All fourteen scenarios, `--quality low`, offline render on Mesa
+`llvmpipe` (software rasteriser, no GPU) under Xvfb. Not real-time.*
+
 ---
 
 ## Physics
