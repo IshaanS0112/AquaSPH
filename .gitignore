@@ -1,4 +1,8 @@
-build/
+# Any build directory, not just the canonical one. `build/` alone let
+# build-dbg/ and build-g/ -- scratch trees from an ASan and a
+# RelWithDebInfo build -- get committed, which put 56 MB of object files
+# and static libraries into the history before anyone noticed.
+build*/
 *.o
 *.obj
 .cache/
