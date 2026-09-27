@@ -5,6 +5,12 @@
 
 namespace aquasph {
 
+// JSON helpers shared by metrics.json and the CLI's --progress-json
+// stream, so both escape strings and render non-finite numbers the same
+// way. jsonNumber returns "null" for NaN/Inf, which JSON cannot express.
+std::string jsonEscape(const std::string& s);
+std::string jsonNumber(double v);
+
 // Machine-readable measurement, which is what separates a scenario that
 // is an EXPERIMENT from one that is an animation. Every scenario emits
 // these; CI asserts on them; docs/validation.md compares them against
@@ -117,6 +123,14 @@ struct MetricsReport {
     long long containmentEvents = 0;
     int unstableParticles = 0;
     bool stable = false;
+    // Set when the run was stopped by SIGTERM/SIGINT before its planned
+    // end. Everything above then describes the run up to that step: a
+    // partial result, still internally consistent, not a failed one.
+    bool cancelled = false;
+
+    const char* statusName() const {
+        return cancelled ? "CANCELLED" : (stable ? "STABLE" : "UNSTABLE");
+    }
 
     double initialFluidVolume = 0.0;
     double finalFluidVolume = 0.0;
@@ -156,6 +170,8 @@ public:
     void finish(const Simulation& sim, double wallSeconds, double avgStepMs,
                  const std::string& quality, int threads, const std::string& gitRevision);
 
+    // The collector cannot know why the loop ended early; the caller does.
+    void markCancelled(bool cancelled) { report_.cancelled = cancelled; }
     const MetricsReport& report() const { return report_; }
 
     // Exposed for tests: fit a wave train to an elevation record.

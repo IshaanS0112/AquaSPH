@@ -2,14 +2,13 @@
 #include "../core/Constants.hpp"
 #include "../core/ParallelReduce.hpp"
 #include <algorithm>
+#include <cstdio>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 
 namespace aquasph {
-
-namespace {
 
 std::string jsonEscape(const std::string& s) {
     std::string out;
@@ -21,18 +20,34 @@ std::string jsonEscape(const std::string& s) {
             case '\n': out += "\\n";  break;
             case '\r': out += "\\r";  break;
             case '\t': out += "\\t";  break;
-            default:   out += c;      break;
+            default:
+                // Any other control character is invalid inside a JSON
+                // string. A scenario name or description containing one
+                // used to pass through raw and produce a metrics file no
+                // parser would accept.
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    char buf[8];
+                    std::snprintf(buf, sizeof buf, "\\u%04x", static_cast<unsigned>(c));
+                    out += buf;
+                } else {
+                    out += c;
+                }
+                break;
         }
     }
     return out;
 }
 
-std::string num(double v) {
+std::string jsonNumber(double v) {
     if (!std::isfinite(v)) return "null";   // JSON has no NaN/Infinity
     std::ostringstream os;
     os << std::setprecision(9) << v;
     return os.str();
 }
+
+namespace {
+
+std::string num(double v) { return jsonNumber(v); }
 
 // Solve omega^2 = g k tanh(k d) for k, by bisection on a bracket that is
 // guaranteed to contain the root: the deep-water value k0 = omega^2/g is a
@@ -404,7 +419,7 @@ std::string MetricsReport::toJson() const {
     o << "  \"git_revision\": \"" << jsonEscape(gitRevision) << "\",\n";
     o << "  \"quality\": \"" << jsonEscape(quality) << "\",\n";
     o << "  \"threads\": " << threads << ",\n";
-    o << "  \"status\": \"" << (stable ? "STABLE" : "UNSTABLE") << "\",\n";
+    o << "  \"status\": \"" << statusName() << "\",\n";
 
     o << "  \"particles\": {\n";
     o << "    \"fluid_final\": " << fluidParticles << ",\n";

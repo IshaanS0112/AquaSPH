@@ -26,6 +26,7 @@ set(AQUASPH_TEST_SOURCES
     test_scene.cpp
     test_dynamic_particles.cpp
     test_extensibility.cpp
+    test_json.cpp
 )
 
 add_executable(aquasph_tests ${AQUASPH_TEST_SOURCES})
@@ -34,3 +35,17 @@ target_include_directories(aquasph_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 include(GoogleTest)
 gtest_discover_tests(aquasph_tests)
+
+# Process-contract tests: exit codes, signal handling and the
+# --progress-json stream, exercised on the real binary. The platform
+# worker in backend/ is built on exactly these promises.
+if(UNIX)
+  foreach(case progress_stream sigterm_cancels profile_conflict load_error_exit_code)
+    add_test(NAME CliContract.${case}
+             COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_cli_contract.sh
+                     $<TARGET_FILE:aquasph>
+                     ${CMAKE_SOURCE_DIR}/configs/scenarios/dam_break.json
+                     ${case})
+    set_tests_properties(CliContract.${case} PROPERTIES TIMEOUT 120)
+  endforeach()
+endif()

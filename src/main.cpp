@@ -11,8 +11,17 @@
 // dam break is now configs/scenarios/dam_break.json like everything else.
 // Keeping a bespoke path for one scenario is exactly how a "scenario
 // engine" quietly becomes a demo with a config file.
+//
+// Process contract (what the platform worker in backend/ relies on):
+//   exit 0 STABLE, 1 UNSTABLE, 2 usage/load error, 3 CANCELLED.
+//   --progress-json makes stdout a stream of JSON lines and nothing else.
+//   SIGTERM/SIGINT stop the run at the next step boundary and still write
+//   metrics, marked CANCELLED. A second signal falls through to the
+//   default action, so an impatient Ctrl-C twice still kills it.
+// docs/platform/TRD.md section 6 documents the stream.
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -37,6 +46,26 @@ using namespace aquasph;
 
 namespace {
 
+constexpr int kExitStable = 0;
+constexpr int kExitUnstable = 1;
+constexpr int kExitUsage = 2;
+constexpr int kExitCancelled = 3;
+
+// Written only by the signal handler, read once per step by the main
+// loop. sig_atomic_t is the one type the standard guarantees can be
+// written from a handler; the handler does nothing else that is not
+// async-signal-safe (signal and raise are both on the POSIX list).
+volatile std::sig_atomic_t g_stopRequested = 0;
+
+extern "C" void onStopSignal(int sig) {
+    if (g_stopRequested) {
+        std::signal(sig, SIG_DFL);
+        std::raise(sig);
+        return;
+    }
+    g_stopRequested = 1;
+}
+
 struct CliArgs {
     std::string scenario = "dam_break";
     std::string metricsPath;
@@ -48,6 +77,7 @@ struct CliArgs {
     bool listScenarios = false;
     bool profile = false;
     bool quiet = false;
+    bool progressJson = false;
     bool help = false;
 };
 
@@ -65,8 +95,10 @@ void printUsage() {
         "  --metrics FILE       write machine-readable metrics JSON\n"
         "  --profile            report wall time per pipeline stage\n"
         "  --quiet              suppress periodic progress output\n"
+        "  --progress-json      stdout becomes JSON lines only (start/progress/done)\n"
         "  --help               this message\n\n"
-        "Exit code is 0 for STABLE, 1 for UNSTABLE, 2 for a usage or load error.\n";
+        "Exit code is 0 for STABLE, 1 for UNSTABLE, 2 for a usage or load error,\n"
+        "3 for CANCELLED (SIGTERM or SIGINT; metrics are still written).\n";
 }
 
 CliArgs parseArgs(int argc, char** argv) {
@@ -121,6 +153,7 @@ CliArgs parseArgs(int argc, char** argv) {
         else if (arg == "--list-scenarios") a.listScenarios = true;
         else if (arg == "--profile")        a.profile = true;
         else if (arg == "--quiet")          a.quiet = true;
+        else if (arg == "--progress-json")  a.progressJson = true;
         else if (arg == "--help" || arg == "-h") a.help = true;
         else if (arg == "--quality") {
             const std::string q = next("--quality");
@@ -133,7 +166,21 @@ CliArgs parseArgs(int argc, char** argv) {
             std::exit(2);
         }
     }
+    if (a.progressJson && a.profile) {
+        // The profile table is human-formatted text on stdout, and
+        // --progress-json promises stdout is JSON lines and nothing else.
+        std::cerr << "[aquasph] --profile cannot be combined with --progress-json.\n";
+        std::exit(2);
+    }
+    if (a.progressJson) a.quiet = true;
     return a;
+}
+
+// One JSON object per line, flushed immediately: stdout is a pipe when
+// the worker reads it, and a pipe is block-buffered, so without the flush
+// a consumer would see progress in 4 KiB bursts or only at exit.
+void emitJsonLine(const std::string& body) {
+    std::cout << "{" << body << "}\n" << std::flush;
 }
 
 int listScenarios() {
@@ -142,7 +189,7 @@ int listScenarios() {
     if (names.empty()) {
         std::cerr << "[aquasph] No scenarios found. Searched:\n";
         for (const auto& d : dirs) std::cerr << "    " << d << "\n";
-        return 2;
+        return kExitUsage;
     }
     std::cout << "Available scenarios (" << names.size() << "):\n\n";
     for (const std::string& n : names) {
@@ -181,14 +228,14 @@ int main(int argc, char** argv) {
         std::cerr << "[aquasph] Scenario '" << args.scenario << "' not found. Searched:\n";
         for (const auto& d : dirs) std::cerr << "    " << d << "\n";
         std::cerr << "Run --list-scenarios to see what is available.\n";
-        return 2;
+        return kExitUsage;
     }
 
     Scenario scenario;
     std::string error;
     if (!ScenarioLoader::loadFile(path, scenario, error)) {
         std::cerr << "[aquasph] " << error << "\n";
-        return 2;
+        return kExitUsage;
     }
 
     scenario.numerics.resolutionScale = qualityScale(args.quality);
@@ -219,7 +266,25 @@ int main(int argc, char** argv) {
         std::cerr << "[aquasph] Scenario '" << scenario.name
                   << "' produced no fluid particles and has no emitters. "
                      "Check that its fluid_regions lie inside the domain.\n";
-        return 2;
+        return kExitUsage;
+    }
+
+    // Installed only now: a signal during argument parsing or scenario
+    // loading has nothing partial worth saving, so the default action
+    // (terminate) is the right one there.
+    std::signal(SIGTERM, onStopSignal);
+    std::signal(SIGINT, onStopSignal);
+
+    if (args.progressJson) {
+        emitJsonLine("\"event\":\"start\",\"scenario\":\"" + jsonEscape(scenario.name) +
+                     "\",\"tier\":" + std::to_string(static_cast<int>(scenario.tier)) +
+                     ",\"quality\":\"" + qualityName(args.quality) +
+                     "\",\"fluid\":" + std::to_string(sim.stats().fluidCount) +
+                     ",\"boundary\":" + std::to_string(sim.boundaryCount()) +
+                     ",\"h\":" + jsonNumber(sim.smoothingRadius()) +
+                     ",\"spacing\":" + jsonNumber(sim.spacing()) +
+                     ",\"threads\":" + std::to_string(activeThreads) +
+                     ",\"t_end\":" + jsonNumber(scenario.duration.simulatedTime));
     }
 
     const auto wallStart = std::chrono::high_resolution_clock::now();
@@ -227,8 +292,14 @@ int main(int argc, char** argv) {
     float nextReport = 0.0f;
     const float reportInterval = std::max(scenario.duration.simulatedTime / 10.0f, 1.0e-6f);
     float prevDt = 0.0f;
+    // Progress lines are throttled on wall time, not simulated time or
+    // steps: a consumer cares how often it hears from the solver, and a
+    // stiff scenario can take thousands of steps per simulated
+    // millisecond.
+    constexpr double kProgressIntervalS = 0.5;
+    double nextProgressWall = kProgressIntervalS;
 
-    while (!sim.finished()) {
+    while (!sim.finished() && !g_stopRequested) {
         timer.start("step");
         const StepStats& st = sim.step();
         timer.stop("step");
@@ -247,6 +318,22 @@ int main(int argc, char** argv) {
                       << std::defaultfloat;
         }
         prevDt = st.dt;
+
+        if (args.progressJson) {
+            const double wallNow = std::chrono::duration<double>(
+                std::chrono::high_resolution_clock::now() - wallStart).count();
+            if (wallNow >= nextProgressWall) {
+                nextProgressWall = wallNow + kProgressIntervalS;
+                emitJsonLine("\"event\":\"progress\",\"t\":" + jsonNumber(st.time) +
+                             ",\"t_end\":" + jsonNumber(scenario.duration.simulatedTime) +
+                             ",\"step\":" + std::to_string(st.step) +
+                             ",\"dt\":" + jsonNumber(st.dt) +
+                             ",\"fluid\":" + std::to_string(st.fluidCount) +
+                             ",\"max_speed\":" + jsonNumber(st.maxSpeed) +
+                             ",\"density_max\":" + jsonNumber(st.densityMax) +
+                             ",\"wall_s\":" + jsonNumber(wallNow));
+            }
+        }
 
         if (!args.quiet && st.time >= nextReport) {
             nextReport = st.time + reportInterval;
@@ -270,7 +357,27 @@ int main(int argc, char** argv) {
 
     metrics.finish(sim, wallSeconds, avgMs, qualityName(args.quality), activeThreads,
                     AQUASPH_GIT_REV);
+    const bool cancelled = g_stopRequested != 0;
+    metrics.markCancelled(cancelled);
     const MetricsReport& rep = metrics.report();
+    const int exitCode = cancelled ? kExitCancelled : (rep.stable ? kExitStable : kExitUnstable);
+
+    if (args.progressJson) {
+        // No human summary: stdout is a JSON-lines stream. The full
+        // result is the --metrics file; "done" carries just enough for a
+        // consumer to act without opening it.
+        if (!args.metricsPath.empty() && !rep.writeJson(args.metricsPath)) {
+            std::cerr << "[aquasph] Failed to write metrics to " << args.metricsPath << "\n";
+            return kExitUsage;
+        }
+        emitJsonLine(std::string("\"event\":\"done\",\"status\":\"") + rep.statusName() +
+                     "\",\"t\":" + jsonNumber(rep.simulatedTime) +
+                     ",\"steps\":" + std::to_string(rep.steps) +
+                     ",\"unstable_particles\":" + std::to_string(rep.unstableParticles) +
+                     ",\"wall_s\":" + jsonNumber(rep.wallTimeSeconds) +
+                     ",\"exit_code\":" + std::to_string(exitCode));
+        return exitCode;
+    }
 
     std::cout << "\n=== " << scenario.name << " ===\n";
     std::cout << "Tier:                       " << rep.tier << "\n";
@@ -333,8 +440,12 @@ int main(int argc, char** argv) {
         std::cout << "NOTE: the particle ceiling was reached; emission stopped early.\n";
     }
 
-    std::cout << "STATUS: " << (rep.stable ? "STABLE" : "UNSTABLE")
+    std::cout << "STATUS: " << rep.statusName()
               << "  (" << rep.unstableParticles << " unstable particles)\n" << std::flush;
+    if (cancelled) {
+        std::cout << "Stopped by signal at t=" << rep.simulatedTime
+                  << " s; the figures above describe the run up to that point.\n";
+    }
 
     if (args.profile) {
         const StageProfile& pr = sim.profile();
@@ -373,9 +484,9 @@ int main(int argc, char** argv) {
             std::cout << "Metrics written to " << args.metricsPath << "\n";
         } else {
             std::cerr << "[aquasph] Failed to write metrics to " << args.metricsPath << "\n";
-            return 2;
+            return kExitUsage;
         }
     }
 
-    return rep.stable ? 0 : 1;
+    return exitCode;
 }
