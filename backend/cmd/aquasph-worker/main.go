@@ -21,6 +21,13 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		addr := os.Getenv("AQUASPH_INTERNAL_ADDR")
+		if addr == "" {
+			addr = ":9091"
+		}
+		app.HealthCheck(addr, "/healthz")
+	}
 	cfg, err := config.LoadWorker()
 	log := obs.NewLogger(os.Stderr, cfg.LogLevel, cfg.LogFormat, "aquasph-worker")
 	if err != nil {

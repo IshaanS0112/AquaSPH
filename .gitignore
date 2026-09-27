@@ -13,6 +13,8 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+# ...except the hand-written one at the root.
+!/Makefile
 compile_commands.json
 *.log
 _deps/
@@ -28,3 +30,8 @@ results/validation/*
 !results/validation/*.json
 gallery/
 frames/
+
+# Local runtime data of the Go services (artifacts written by a worker
+# started from backend/ with the default AQUASPH_ARTIFACT_DIR) and built binaries.
+backend/data/
+backend/bin/

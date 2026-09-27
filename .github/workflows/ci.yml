@@ -116,3 +116,103 @@ jobs:
           cmake -B build-warn -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=OFF \
                 -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
           cmake --build build-warn --parallel
+
+  backend:
+    name: Platform (Go) against real Postgres and Redis
+    runs-on: ubuntu-latest
+    # Integration tests run against real services, not mocks: the queue's
+    # correctness is SQL locking behaviour (SKIP LOCKED, row locks, READ
+    # COMMITTED re-checks) that no mock reproduces.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      AQUASPH_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+      AQUASPH_TEST_REDIS_URL: redis://127.0.0.1:6379/0
+      # Missing services or a missing solver fail the job instead of
+      # silently skipping the tests that need them.
+      AQUASPH_REQUIRE_INTEGRATION: "1"
+      AQUASPH_REQUIRE_SOLVER: "1"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the solver the worker runs
+        working-directory: ${{ github.workspace }}
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=OFF
+          cmake --build build --target aquasph --parallel
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Unit and integration tests (race detector)
+        run: go test -race -short -count=1 ./...
+
+      - name: End-to-end with failure injection
+        # Real binaries, the real solver, workers SIGKILLed and SIGTERMed
+        # mid-job. See backend/e2e/e2e_test.go.
+        run: go test -count=1 -timeout 15m -v ./e2e/
+
+  container:
+    name: Container image and Compose stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build --build-arg GIT_REV="${GITHUB_SHA::7}" -t aquasph:local .
+
+      - name: Solver runs inside the image
+        run: |
+          docker run --rm aquasph:local aquasph \
+            --scenario /opt/aquasph/scenarios/dam_break.json \
+            --quality low --time 0.02 --threads 2 --progress-json --metrics /tmp/m.json \
+            | tail -1 | grep '"status":"STABLE"'
+
+      - name: Whole stack runs a job end to end
+        # Exactly the quick start in README.md: compose up, mint a key,
+        # submit a job over HTTP, wait for the real solver to finish it.
+        run: |
+          set -eu
+          docker compose up -d --no-build --wait
+          docker compose exec -T api aquasph-admin tenant create ci
+          KEY=$(docker compose exec -T api aquasph-admin key create ci 2>/dev/null | tr -d '\r')
+          ID=$(curl -fsS -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+                 -d '{"scenario":"dam_break","quality":"low","sim_time":0.05}' \
+                 http://localhost:8080/v1/jobs | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          for i in $(seq 1 120); do
+            STATE=$(curl -fsS -H "Authorization: Bearer $KEY" http://localhost:8080/v1/jobs/$ID \
+                      | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')
+            [ "$STATE" = completed ] && break
+            case "$STATE" in failed|cancelled) echo "job $STATE"; exit 1 ;; esac
+            sleep 1
+          done
+          [ "$STATE" = completed ]
+          curl -fsS -H "Authorization: Bearer $KEY" http://localhost:8080/v1/jobs/$ID/result | grep '"STABLE"'
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color | tail -n 200

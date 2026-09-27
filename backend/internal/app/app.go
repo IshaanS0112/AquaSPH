@@ -90,6 +90,31 @@ func Serve(ctx context.Context, srv *http.Server, ln net.Listener, timeout time.
 	return srv.Shutdown(sctx)
 }
 
+// HealthCheck implements "<binary> healthcheck": GET a probe on the
+// process's own internal port and exit 0 or 1. It exists so container
+// health checks need no curl in the runtime image.
+func HealthCheck(addr, path string) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		os.Exit(1)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	c := http.Client{Timeout: 3 * time.Second}
+	res, err := c.Get("http://" + net.JoinHostPort(host, port) + path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "status", res.StatusCode)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
 func Exit(log *slog.Logger, msg string, err error) {
 	log.Error(msg, "err", err)
 	os.Exit(1)
