@@ -1,5 +1,9 @@
 # AquaSPH -- Architecture and Design Decisions
 
+> This document covers the solver. The job platform around it (Go API,
+> Postgres queue, workers) is documented in [platform/TRD.md](platform/TRD.md).
+
+
 ## Overview
 
 A CPU-based 3D Smoothed Particle Hydrodynamics solver with the hot

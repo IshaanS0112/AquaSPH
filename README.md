@@ -2,22 +2,82 @@
 
 # AquaSPH
 
-**A 3D SPH fluid solver, scenario laboratory, and screen-space visualisation engine in C++17**
+**A deterministic 3D fluid solver in C++17, run as a multi-tenant simulation platform in Go**
 
 [![CI](https://github.com/IshaanS0112/AquaSPH/actions/workflows/ci.yml/badge.svg)](https://github.com/IshaanS0112/AquaSPH/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8.svg?logo=go&logoColor=white)](backend/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1.svg?logo=postgresql&logoColor=white)](backend/internal/db/migrations/)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D.svg?logo=redis&logoColor=white)](docs/platform/TRD.md)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED.svg?logo=docker&logoColor=white)](docker-compose.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
-[![CMake](https://img.shields.io/badge/CMake-3.16%2B-064F8C.svg?logo=cmake&logoColor=white)](https://cmake.org/)
 [![OpenMP](https://img.shields.io/badge/OpenMP-parallel-EE4C2C.svg)](https://www.openmp.org/)
-[![OpenGL](https://img.shields.io/badge/OpenGL-3.3%20core-5586A4.svg?logo=opengl)](https://www.opengl.org/)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)](#build)
-[![Tests](https://img.shields.io/badge/tests-81%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-89%20C%2B%2B%20%2B%2099%20Go%20%2B%207%20E2E-brightgreen.svg)](#testing)
 
-Fourteen fluid scenarios composed from reusable primitives in JSON, on a
-weakly-compressible SPH solver with adaptive timestepping, Akinci boundary
-particles, and bit-identical output across thread counts.
+Submit a fluid simulation over HTTP, watch it progress live, get
+machine-readable physics back. Identical requests return in milliseconds
+from a content-addressed cache, a worker killed mid-run loses nothing, and
+fourteen scenarios run on an SPH solver whose output is bit-identical
+across thread counts.
 
 </div>
+
+---
+
+## The platform
+
+```
+ aquactl / HTTP ──► aquasph-api ──SQL──► Postgres 16 ◄──claim / lease / fence── aquasph-worker ×N ──fork/exec──► aquasph (C++)
+   JSON, SSE          (Go)        │     jobs table = queue                        (Go)            ◄─JSON lines──   OpenMP solver
+                                  └──► Redis 7: GCRA rate limit, progress pub/sub (optional; degrades, never fails)
+```
+
+The solver is a CPU-heavy batch program: a single run takes seconds to
+many minutes on every core. The platform turns it into a service, and
+most of the engineering went into the failure cases:
+
+| Concern | How | Proof |
+|---|---|---|
+| **Durable queue** | The `jobs` table *is* the queue: `SELECT … FOR UPDATE SKIP LOCKED`, leases, and a fencing token on every post-claim write, so a worker that stalls past its lease cannot overwrite the next attempt ([ADR-0001](docs/platform/adr/0001-postgres-as-queue.md)) | 8 workers × 200 jobs complete each job exactly once; a zombie worker's writes are all rejected |
+| **Per-tenant fairness** | The tenant row is locked before counting its running jobs, so a concurrency limit holds under races | Mutation-tested: without the lock, 8 of 8 simultaneous claims succeeded against a limit of 2 |
+| **Crash recovery** | Expired leases are requeued with jittered backoff; the solver dies with its worker (`Pdeathsig`) | Live: a job survived two `kill -9`s of its worker and completed on attempt 3 ([audit trail](docs/platform/benchmarks.md#recovery-failure-injection-live-system)) |
+| **Result cache** | Keyed on the canonical spec hash plus the SHA-256 of the solver binary. Sound *only* because the solver is bit-identical across thread counts ([ADR-0002](docs/platform/adr/0002-content-addressed-cache.md)) | A cache hit returns in 15 ms against 11 s for a fresh run, with byte-identical metrics |
+| **Cancellation** | SIGTERM, then the solver finishes its step and writes partial metrics (exit 3), then SIGKILL after a grace period | 0.81 s from request to stopped, partial result kept |
+| **Idempotency and quotas** | `Idempotency-Key` replay; queue quotas under an advisory lock; everything in one transaction | 10 concurrent retries create 1 job; 20 racing submits against a quota of 5 accept exactly 5 |
+| **API hygiene** | API keys stored as hashes, constant-time compare; strict JSON (a typo such as `sim_tme` is a 400); RFC 9457 errors; keyset pagination; SSE with a Postgres fallback | An OpenAPI [spec](backend/api/openapi.yaml) that a test keeps in sync with the router |
+| **Operations** | Prometheus metrics, structured logs with request IDs, graceful drain, health checks, a [runbook](docs/platform/runbook.md) | `docker compose stop worker` mid-job drains and *completes* the job |
+
+API overhead on one shared 4-core VM (API, Postgres, Redis and the load
+generator all on the same box): **2,852 req/s** reads at p99 20 ms,
+**477 req/s** full transactional submits at p99 114 ms, zero errors
+([benchmarks](docs/platform/benchmarks.md)). A 67 ms submit is 0.6% of
+an 11 s low-quality run and noise against a 14-minute medium one, so the
+solver, not the platform, is the bottleneck.
+
+### Run it
+
+```bash
+make up                 # docker compose: postgres, redis, api, 2 workers
+make demo-key           # prints an API key, once
+export AQUASPH_API_KEY=aqk_...
+cd backend && go build -o bin/ ./cmd/aquactl
+
+bin/aquactl submit dam_break --time 0.3 --set /materials/0/viscosity=1.0 --watch
+# [#####################.........]  71.3%  t=0.214/0.300 s  step 906  fluid 3864
+# job 01a0e2e2-... completed (stable) after 11.052s
+
+bin/aquactl submit dam_break --time 0.3 --set /materials/0/viscosity=1   # same physics
+# job 01a0e2e2-... completed (cache hit: result of 01a0e2e2-...)
+
+bin/aquactl sweep create dam_break --time 0.15 \
+    --grid /materials/0/viscosity=0.5,1,5 --grid /numerics/xsph_epsilon=0,0.5
+bin/aquactl sweep results <sweep-id> --metrics /density/max,/dynamics/max_speed
+```
+
+Design: [PRD](docs/platform/PRD.md) → [TRD](docs/platform/TRD.md) →
+[ADRs](docs/platform/adr/) → code → [benchmarks](docs/platform/benchmarks.md)
+→ [runbook](docs/platform/runbook.md). The rest of this README covers the
+solver the platform runs.
 
 ---
 
@@ -280,8 +340,29 @@ scripts/make_gallery.sh medium               # clips and a contact sheet
 ctest --test-dir build --output-on-failure
 ```
 
-81 tests. The 20 from v1 all still pass — the only edit to them was
-dropping a removed constructor argument; no assertion was changed.
+**Solver:** 89 tests: the 81 below plus 8 for the process contract the
+platform relies on (the `--progress-json` stream, SIGTERM leading to exit 3
+with partial metrics, and JSON escaping). The 20 from v1 all still pass;
+the only edit to them was dropping a removed constructor argument, and no
+assertion was changed.
+
+**Platform:** 99 Go tests plus a 7-scenario end-to-end suite, all against
+real Postgres and Redis (the queue's correctness is SQL locking
+behaviour, which no mock reproduces), all under the race detector:
+
+```bash
+cd backend && go test -race ./...     # needs Postgres + Redis; see internal/testutil
+```
+
+The end-to-end suite builds the binaries, starts an API and workers as
+real processes on the real solver, then `SIGKILL`s and `SIGTERM`s
+workers mid-job and checks the platform recovers. Four tests were
+**mutation-checked**, meaning the code each one guards was removed and the
+test was confirmed to fail: the tenant row lock (8 of 8 claims won against
+a limit of 2), the quota lock (14 of 20 submissions accepted against a
+quota of 5), the OpenAPI drift check, and cache-hit lineage.
+
+The 81 solver tests from v2:
 
 The 61 added in v2 cover, among others: the two force-law bugs (a viscous
 term must oppose relative motion; a stored force must be a force and not
@@ -325,6 +406,12 @@ honest extension point.
 
 | Document | Contents |
 |---|---|
+| [`docs/platform/PRD.md`](docs/platform/PRD.md) | The platform's users, requirements, explicit non-goals, and success criteria |
+| [`docs/platform/TRD.md`](docs/platform/TRD.md) | Topology, job state machine, queue semantics, cache keying, data model, solver protocol, failure modes |
+| [`docs/platform/adr/`](docs/platform/adr/) | Four decisions with their rejected alternatives: Postgres as the queue, the content-addressed cache, process isolation for the solver, hashed API keys |
+| [`docs/platform/benchmarks.md`](docs/platform/benchmarks.md) | Measured API throughput and latency, cache and cancellation timings, and a live recovery trace |
+| [`docs/platform/runbook.md`](docs/platform/runbook.md) | Worker sizing, alerts, every failure mode and what to do, tenant and key management, full configuration reference |
+| [`backend/api/openapi.yaml`](backend/api/openapi.yaml) | The HTTP API (OpenAPI 3.1) |
 | [`docs/architecture.md`](docs/architecture.md) | Module map, parallelisation, seven documented bugs with how each was found, the Phase 0 before/after, boundary resolution measured, the dynamic-particle audit, known physical approximations, Tier 3 extension points |
 | [`docs/scenarios.md`](docs/scenarios.md) | How to author a scenario. Every primitive, every field, a worked example |
 | [`docs/gallery.md`](docs/gallery.md) | Each scenario: tier, physics demonstrated, parameters, and one honest sentence on where the model is approximate |

@@ -1,7 +1,8 @@
 # AquaSPH Platform — Product Requirements
 
-**Status:** implemented (see [TRD.md](TRD.md) for how, and the "Verified" column
-below for what has actually been exercised).
+**Status:** implemented. [TRD.md](TRD.md) covers how,
+[verification.md](verification.md) covers what was exercised on the running
+system, and [benchmarks.md](benchmarks.md) has the measurements.
 
 ## 1. The problem
 
