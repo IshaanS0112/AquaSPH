@@ -106,7 +106,7 @@ func FindCached(ctx context.Context, q Querier, cacheKeys []string, tenantID *uu
 		SELECT `+JobColumns+` FROM jobs
 		WHERE state = 'completed' AND cache_key = ANY($1)
 		  AND ($2::uuid IS NULL OR tenant_id = $2)
-		ORDER BY finished_at DESC
+		ORDER BY cache_hit, finished_at DESC -- prefer the job that computed it over earlier hits
 		LIMIT 1`, cacheKeys, tenantID))
 	if err != nil {
 		if errors.Is(notFound(err), domain.ErrNotFound) {
@@ -132,7 +132,7 @@ func FindCachedMany(ctx context.Context, q Querier, keyToHash map[string]string,
 		SELECT DISTINCT ON (cache_key) `+JobColumns+` FROM jobs
 		WHERE state = 'completed' AND cache_key = ANY($1)
 		  AND ($2::uuid IS NULL OR tenant_id = $2)
-		ORDER BY cache_key, finished_at DESC`, keys, tenantID)
+		ORDER BY cache_key, cache_hit, finished_at DESC`, keys, tenantID)
 	if err != nil {
 		return nil, err
 	}

@@ -28,6 +28,10 @@ func main() {
 	}
 	ctx, stop := app.SignalContext()
 	defer stop()
+	metricsLn, err := app.Listen(cfg.InternalAddr)
+	if err != nil {
+		app.Exit(log, "metrics listener", err)
+	}
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL, int32(cfg.Concurrency)+4)
 	if err != nil {
@@ -64,7 +68,7 @@ func main() {
 	mux.Handle("GET /metrics", app.MetricsHandler(reg))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"status":"ok"}`)) })
 	go func() {
-		if err := app.Serve(ctx, api.NewHTTPServer(cfg.InternalAddr, mux), 5*time.Second, log); err != nil {
+		if err := app.Serve(ctx, api.NewHTTPServer(cfg.InternalAddr, mux), metricsLn, 5*time.Second, log); err != nil {
 			log.Error("metrics server", "err", err)
 		}
 	}()

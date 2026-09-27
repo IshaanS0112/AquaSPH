@@ -5,7 +5,9 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -55,13 +57,24 @@ func MetricsHandler(reg *prometheus.Registry) http.Handler {
 	return promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})
 }
 
-// Serve runs srv until ctx is cancelled, then shuts it down gracefully
-// within timeout. It returns once the server has stopped.
-func Serve(ctx context.Context, srv *http.Server, timeout time.Duration, log *slog.Logger) error {
+// Listen binds addr now, so a port conflict fails start-up loudly
+// instead of leaving a process running without its metrics endpoint
+// (invisible to monitoring), which is what happened before this existed.
+func Listen(addr string) (net.Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", addr, err)
+	}
+	return ln, nil
+}
+
+// Serve runs srv on ln until ctx is cancelled, then shuts it down
+// gracefully within timeout. It returns once the server has stopped.
+func Serve(ctx context.Context, srv *http.Server, ln net.Listener, timeout time.Duration, log *slog.Logger) error {
 	errc := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Info("listening", "addr", ln.Addr().String())
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errc <- err
 		}
 		close(errc)

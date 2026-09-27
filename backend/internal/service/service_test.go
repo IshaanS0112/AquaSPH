@@ -239,6 +239,13 @@ func TestIdenticalSubmissionIsServedFromCache(t *testing.T) {
 		t.Fatalf("expected a cache hit on %s, got %+v", first.ID, hit)
 	}
 
+	// A hit on a result that has already been hit still names the job that
+	// computed it, not the previous hit.
+	again, _, _ := e.svc.SubmitJob(ctx, tn, damBreak(), "")
+	if !again.CacheHit || *again.SourceJobID != first.ID {
+		t.Fatalf("second hit names %v as its source, want %s", again.SourceJobID, first.ID)
+	}
+
 	optOut := damBreak()
 	optOut.Cache = ptr(false)
 	if j, _, _ := e.svc.SubmitJob(ctx, tn, optOut, ""); j.State != domain.StateQueued {

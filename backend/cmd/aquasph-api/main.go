@@ -86,6 +86,15 @@ func main() {
 		return checks, ok
 	}
 
+	// Bind both ports before doing anything else observable.
+	publicLn, err := app.Listen(cfg.HTTPAddr)
+	if err != nil {
+		app.Exit(log, "public listener", err)
+	}
+	internalLn, err := app.Listen(cfg.InternalAddr)
+	if err != nil {
+		app.Exit(log, "internal listener", err)
+	}
 	server := api.New(deps)
 	log.Info("starting", "scenarios", len(catalog.List()), "cache_scope", cfg.CacheScope, "redis", rc != nil)
 	var wg sync.WaitGroup
@@ -95,11 +104,11 @@ func main() {
 		srv  func() error
 	}{
 		{cfg.HTTPAddr, func() error {
-			return app.Serve(ctx, api.NewHTTPServer(cfg.HTTPAddr, server.Handler()), cfg.ShutdownTimeout, log)
+			return app.Serve(ctx, api.NewHTTPServer(cfg.HTTPAddr, server.Handler()), publicLn, cfg.ShutdownTimeout, log)
 		}},
 		{cfg.InternalAddr, func() error {
 			return app.Serve(ctx, api.NewHTTPServer(cfg.InternalAddr, server.InternalHandler(app.MetricsHandler(reg))),
-				5*time.Second, log)
+				internalLn, 5*time.Second, log)
 		}},
 	} {
 		wg.Add(1)
