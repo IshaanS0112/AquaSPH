@@ -56,6 +56,10 @@ solver, not the platform, is the bottleneck.
 
 ### Run it
 
+New to the codebase? [`docs/GUIDE.md`](docs/GUIDE.md) covers opening it in an IDE, what every
+folder is, and a walk through one job's path through the code.
+
+
 ```bash
 make up                 # docker compose: postgres, redis, api, 2 workers
 make demo-key           # prints an API key, once
@@ -406,6 +410,7 @@ honest extension point.
 
 | Document | Contents |
 |---|---|
+| [`docs/GUIDE.md`](docs/GUIDE.md) | Start here: IDE setup, a map of every folder, one job traced through the code |
 | [`docs/platform/PRD.md`](docs/platform/PRD.md) | The platform's users, requirements, explicit non-goals, and success criteria |
 | [`docs/platform/TRD.md`](docs/platform/TRD.md) | Topology, job state machine, queue semantics, cache keying, data model, solver protocol, failure modes |
 | [`docs/platform/adr/`](docs/platform/adr/) | Four decisions with their rejected alternatives: Postgres as the queue, the content-addressed cache, process isolation for the solver, hashed API keys |
