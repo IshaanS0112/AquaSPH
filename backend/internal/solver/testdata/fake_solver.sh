@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# A stand-in for the aquasph binary that speaks the same process protocol
-# (see docs/platform/TRD.md section 6), used to test the supervisor and
-# the worker against every way a run can end without spending CPU on
-# physics. Behaviour is chosen by FAKE_MODE, or else by a "fake_mode" key
-# in the scenario file (so parallel tests can each pick their own).
+# A stand-in for the aquasph binary that speaks the same process protocol (see
+# docs/platform/TRD.md section 6), used to test the supervisor and the worker against every way
+# a run can end without spending CPU on physics.
 set -u
 metrics=""; quality="low"; t_end="0.5"; scenario=""
 while [ $# -gt 0 ]; do

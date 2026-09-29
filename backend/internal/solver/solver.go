@@ -1,11 +1,6 @@
-// Package solver supervises one run of the aquasph binary: it builds the
-// command line, parses the --progress-json stream, enforces cancellation
-// (SIGTERM, a grace period, then SIGKILL), and reports how the process
-// ended. The protocol is documented in docs/platform/TRD.md section 6.
-//
-// It deliberately knows nothing about jobs, leases or databases: it runs
-// a process and says what happened. Deciding what that means for a job
-// is the worker's job.
+// Package solver supervises one run of the aquasph binary: it builds the command line, parses
+// the --progress-json stream, enforces cancellation (SIGTERM, a grace period, then SIGKILL),
+// and reports how the process ended.
 package solver
 
 import (
@@ -114,15 +109,8 @@ type Outcome struct {
 	StderrPath   string
 }
 
-// Run starts the solver and blocks until it exits. onEvent is called
-// from the stdout-reading goroutine for every parsed event.
-//
-// Pipes are owned here rather than taken from cmd.StdoutPipe: os/exec's
-// Wait closes that pipe as soon as the process exits, so calling Wait
-// before the reader reaches EOF can drop the final lines -- and the final
-// line is the "done" event. That happened in roughly one run in six
-// before this was rewritten. Stderr goes straight to a file for the same
-// reason (no copying goroutine for Wait to block on).
+// Run starts the solver and blocks until it exits. onEvent is called for every parsed event.
+// It owns the stdout pipe: cmd.StdoutPipe is closed by Wait and could drop the final line.
 func Run(ctx context.Context, s Spec, onEvent func(Event)) (*Outcome, error) {
 	out := &Outcome{
 		ProgressPath: filepath.Join(s.WorkDir, "progress.jsonl"),
@@ -194,9 +182,7 @@ func Run(ctx context.Context, s Spec, onEvent func(Event)) (*Outcome, error) {
 	case waitErr = <-waitCh:
 	case <-ctx.Done():
 		out.StopCause = context.Cause(ctx)
-		// Ask politely: the solver finishes its step, writes partial
-		// metrics and exits 3. The whole process group is signalled, so
-		// nothing the solver might have spawned outlives it.
+		// Ask politely: the solver finishes its step, writes partial metrics and exits 3.
 		signalGroup(cmd, syscall.SIGTERM)
 		grace := time.NewTimer(s.CancelGrace)
 		select {
@@ -209,8 +195,6 @@ func Run(ctx context.Context, s Spec, onEvent func(Event)) (*Outcome, error) {
 		}
 	}
 	// The process has exited; its group was signalled if we stopped it.
-	// Bound the wait for EOF anyway, in case some descendant kept the
-	// pipe open, so a misbehaving child can never wedge a worker slot.
 	select {
 	case <-readDone:
 	case <-time.After(2 * time.Second):
@@ -238,13 +222,6 @@ func Run(ctx context.Context, s Spec, onEvent func(Event)) (*Outcome, error) {
 	return out, nil
 }
 
-func signalGroup(cmd *exec.Cmd, sig syscall.Signal) {
-	// Negative PID: the process group led by the solver (Setpgid).
-	if err := syscall.Kill(-cmd.Process.Pid, sig); err != nil {
-		_ = cmd.Process.Signal(sig)
-	}
-}
-
 // readTail returns the last n bytes of a file: enough stderr to explain a
 // failure in an API response without storing megabytes in the job row.
 func readTail(path string, n int64) string {
@@ -266,10 +243,8 @@ func readTail(path string, n int64) string {
 	return string(b)
 }
 
-// Identity is the SHA-256 of the solver binary: the solver_id that cache
-// keys include (ADR-0002). Two builds of the same commit with different
-// compiler flags are different solvers, and this is the only identifier
-// that cannot be forgotten or mislabelled.
+// Identity is the SHA-256 of the solver binary: the solver_id that cache keys include
+// (ADR-0002).
 func Identity(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
