@@ -245,9 +245,9 @@ func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"job_id": id, "data": out})
 }
 
-// getArtifact streams a file. The name must appear in the job's recorded
-// artifact list (an allowlist from the database), and the artifact store
-// validates it again, so the URL cannot address anything else.
+// getArtifact streams a file. The name must appear in the job's recorded artifact list (an
+// allowlist from the database), and the artifact store validates it again, so the URL cannot
+// address anything else.
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.pathID(w, r)
 	if !ok {

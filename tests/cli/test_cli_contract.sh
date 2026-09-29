@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
-# Process-contract tests for the headless solver: the promises the
-# platform worker (backend/internal/solver) depends on. These are shell
-# tests rather than GoogleTest because the contract *is* the process
-# boundary -- exit codes, signals, and what appears on stdout.
-#
-# usage: test_cli_contract.sh <path-to-aquasph> <path-to-dam_break.json> <case>
+# Process-contract tests for the headless solver: the promises the platform worker
+# (backend/internal/solver) depends on.
 set -u
 BIN="$1"; SCENARIO="$2"; CASE="$3"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
 fail() { echo "FAIL [$CASE]: $*" >&2; exit 1; }
 
-# Every stdout line must be one JSON object. python3 does the parsing when
-# present; otherwise fall back to a shape check so the test still means
-# something on a runner without it.
+# Every stdout line must be one JSON object. python3 does the parsing when present.
 check_json_lines() {
   if command -v python3 >/dev/null 2>&1; then
     python3 - "$1" <<'PY' || return 1

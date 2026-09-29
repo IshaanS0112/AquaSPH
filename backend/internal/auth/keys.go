@@ -1,13 +1,4 @@
 // Package auth implements API keys (ADR-0004).
-//
-// Format: aqk_<prefix>_<secret>
-//
-//	prefix  8 chars of [a-z0-9]    lookup handle, stored in plaintext, safe to log
-//	secret  32 chars of base62      ~190 bits from crypto/rand
-//
-// Only sha256(full key) is stored. Because the secret is high-entropy
-// random data rather than a human password, a fast hash is correct here;
-// bcrypt would add ~50 ms per request and buy nothing.
 package auth
 
 import (
@@ -73,8 +64,6 @@ func Hash(full string) []byte {
 }
 
 // Parse validates the shape of a presented key and returns its prefix.
-// Shape checks happen before any database lookup, so garbage in the
-// Authorization header costs nothing.
 func Parse(full string) (prefix string, err error) {
 	if len(full) != fullKeyLen || !strings.HasPrefix(full, keyPrefix) {
 		return "", ErrMalformedKey

@@ -8,13 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Listen keeps a dedicated connection LISTENing on NotifyChannel and
-// signals wake (non-blocking, coalescing) on every notification. It
-// reconnects with backoff until ctx is done.
-//
-// NOTIFY is an optimisation, not a guarantee: notifications sent while
-// this connection is down are lost. Workers therefore also poll, and
-// this only shortens the time from enqueue to claim when it works.
+// Listen keeps a dedicated connection LISTENing on NotifyChannel and signals wake
+// (non-blocking, coalescing) on every notification.
 func Listen(ctx context.Context, url string, wake chan<- struct{}, log *slog.Logger) {
 	delay := 100 * time.Millisecond
 	for ctx.Err() == nil {

@@ -14,14 +14,8 @@ type IdempotencyRecord struct {
 	StatusCode   int
 }
 
-// ClaimIdempotencyKey records key for this request inside the caller's
-// transaction. It returns nil if the key is new (proceed and create the
-// resource with resourceID), or the existing record if it was used before.
-//
-// Concurrency: if two requests with the same key race, the second INSERT
-// blocks on the first's uncommitted unique-index entry until that
-// transaction ends, then sees the conflict and reads the committed row.
-// Exactly one request creates the resource; the other replays it.
+// ClaimIdempotencyKey records key for this request inside the caller's transaction and
+// returns the earlier record if the key was already used.
 func ClaimIdempotencyKey(ctx context.Context, q Querier, tenantID uuid.UUID, key, requestHash, resourceType string,
 	resourceID uuid.UUID, status int) (*IdempotencyRecord, error) {
 	tag, err := q.Exec(ctx, `

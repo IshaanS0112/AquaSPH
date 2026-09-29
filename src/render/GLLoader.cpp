@@ -1,11 +1,4 @@
-// GLFW_INCLUDE_NONE: tell glfw3.h not to pull in a client API header
-// (GL/gl.h) on its own. This is GLFW's own documented way to pair with a
-// custom loader (this file) instead of a system OpenGL header -- see
-// https://www.glfw.org/docs/latest/build_guide.html#build_link_glad --
-// glfwGetProcAddress is the whole point of using a loader instead of
-// linking function names directly, since letting glfw3.h's own GL/gl.h
-// include declare them first would create the exact redefinition
-// this loader exists to avoid.
+// GLFW_INCLUDE_NONE: tell glfw3.h not to pull in a client API header (GL/gl.h) on its own.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -81,11 +74,7 @@ PFN_glUniform2f                 glUniform2f = nullptr;
 PFN_glUniform4f                 glUniform4f = nullptr;
 
 namespace {
-// Loads one symbol and reports its name on failure -- deliberately
-// verbose (one line per missing symbol, not just a single "loading
-// failed") because the alternative is a silent null-pointer crash the
-// first time that particular GL call executes, which is a much worse
-// debugging experience than a clear list at startup.
+// Loads one symbol and reports its name on failure.
 template <typename PFN>
 bool loadOne(PFN& out, const char* name) {
     out = reinterpret_cast<PFN>(glfwGetProcAddress(name));
@@ -136,11 +125,8 @@ bool loadGLFunctions() {
     ok &= loadOne(glUniform1f, "glUniform1f");
     ok &= loadOne(glUniform3f, "glUniform3f");
 
-    // Screen-space fluid renderer: framebuffer objects, float textures,
-    // and the extra uniform setters the SSFR passes need. All are GL 3.0/3.3
-    // core, so a context that provides the block above provides these too --
-    // but they are still resolved and checked individually rather than
-    // assumed, for the same reason as the rest.
+    // Screen-space fluid renderer: framebuffer objects, float textures, and the extra uniform
+    // setters the SSFR passes need.
     ok &= loadOne(glDrawElements, "glDrawElements");
     ok &= loadOne(glDepthMask, "glDepthMask");
     ok &= loadOne(glDepthFunc, "glDepthFunc");

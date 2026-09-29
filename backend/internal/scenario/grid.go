@@ -8,13 +8,8 @@ import (
 // GridPoint is one combination of sweep parameters: pointer -> value.
 type GridPoint map[string]any
 
-// ExpandGrid returns the cartesian product of the axes in a deterministic
-// order: axes sorted by pointer, then values in the order given, with the
-// last axis varying fastest. Deterministic order means a resubmitted sweep
-// produces its children in the same order, and results tables line up.
-//
-// The size is checked before anything is allocated, so a request for
-// 64^6 combinations is rejected in microseconds.
+// ExpandGrid returns the cartesian product of the axes in a deterministic order: axes sorted by
+// pointer, then values in the order given, with the last axis varying fastest.
 func ExpandGrid(grid map[string][]any, max int) ([]GridPoint, error) {
 	if len(grid) == 0 {
 		return nil, fmt.Errorf("grid must have at least one axis")

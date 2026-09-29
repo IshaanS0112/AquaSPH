@@ -1,9 +1,4 @@
 // Package artifacts stores the files a job produces.
-//
-// Store is the seam for object storage (TRD §10). LocalFS is the only
-// implementation: there is no S3-compatible service in the build
-// environment to test another against, and an untested storage backend is
-// a data-loss bug waiting for its first deploy.
 package artifacts
 
 import (
@@ -29,9 +24,9 @@ type Store interface {
 	Open(ctx context.Context, jobID uuid.UUID, name string) (*os.File, error)
 }
 
-// Names are a strict allowlist, checked on write *and* read: the download
-// handler passes a name from the URL, and this is what makes
-// "../../etc/passwd" impossible rather than merely unlikely.
+// Names are a strict allowlist, checked on write *and* read: the download handler passes a name
+// from the URL, and this is what makes "../../etc/passwd" impossible rather than merely
+// unlikely.
 var nameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}(\.[a-z0-9]{1,8}){0,2}$`)
 
 func ValidName(name string) bool {
@@ -77,9 +72,8 @@ func (l *LocalFS) path(jobID uuid.UUID, name string) (string, error) {
 	return filepath.Join(l.root, jobID.String(), name), nil
 }
 
-// Put writes to a temporary file and renames it into place, so a reader
-// never sees a half-written artifact and a crash mid-write leaves no
-// corrupt file behind. The SHA-256 is computed while copying.
+// Put writes to a temporary file and renames it into place, so a reader never sees a
+// half-written artifact and a crash mid-write leaves no corrupt file behind.
 func (l *LocalFS) Put(_ context.Context, jobID uuid.UUID, name string, r io.Reader) (domain.Artifact, error) {
 	dst, err := l.path(jobID, name)
 	if err != nil {

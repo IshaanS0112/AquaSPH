@@ -23,17 +23,8 @@ jobs:
         run: brew install libomp
 
       - name: Configure
-        # Visualization stays OFF here on purpose, and the "GL-free build"
-        # step below is what proves that is a real property rather than a
-        # default nobody checks: aquasph_view needs the X11 development
-        # headers GLFW's own CMake requires at configure time, and the
-        # headless binary plus every test target links neither GL nor GLFW.
-        #
-        # macOS needs explicit OpenMP flags, not just an OpenMP_ROOT hint:
-        # Homebrew's libomp is keg-only, and CMake's FindOpenMP couldn't
-        # locate its flags/library from OpenMP_ROOT alone when this was
-        # tested directly on real Apple Silicon hardware (AppleClang 21,
-        # CMake 4.4.2) -- see the "macOS" note under Build in README.md.
+        # Visualization stays OFF: the GL-free build step below proves the headless binary links no GL.
+        # macOS needs explicit OpenMP flags because Homebrew's libomp is keg-only.
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             cmake -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=ON \
@@ -48,17 +39,13 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Unit tests
-        # Includes the bit-identical-across-1/2/4/8-threads determinism
-        # tests and the boundary-leakage test, which are the two properties
-        # most likely to be broken silently by an otherwise-reasonable
-        # change.
+        # Includes the bit-identical-across-1/2/4/8-threads determinism tests and the
+        # boundary-leakage test, which are the two properties most likely to be broken silently
+        # by an otherwise-reasonable change.
         run: ctest --test-dir build --output-on-failure
 
       - name: GL-free headless build
-        # The claim is that the solver never depends on the renderer. This
-        # asserts it mechanically rather than by convention: if any core or
-        # scene source ever includes a GL header or references a GLFW
-        # symbol, `nm` finds it here.
+        # The claim is that the solver never depends on the renderer.
         if: runner.os == 'Linux'
         run: |
           set -e
@@ -74,15 +61,8 @@ jobs:
           echo "OK: aquasph links no graphics library and references no GL symbols."
 
       - name: Scenario smoke tests
-        # A solver that builds, passes its unit tests, and then diverges on
-        # a real scenario is still broken. This runs every scenario in the
-        # library for a short slice of simulated time at the development
-        # resolution and fails if any reports UNSTABLE.
-        #
-        # Short --time, not short --steps: with an adaptive timestep, a
-        # fixed step count covers a different amount of physics at each
-        # resolution, so a wall-clock budget expressed in steps would
-        # silently test less as the solver got faster.
+        # A solver that builds, passes its unit tests, and then diverges on a real scenario is
+        # still broken.
         working-directory: ${{ github.workspace }}
         run: |
           set -e
@@ -120,9 +100,9 @@ jobs:
   backend:
     name: Platform (Go) against real Postgres and Redis
     runs-on: ubuntu-latest
-    # Integration tests run against real services, not mocks: the queue's
-    # correctness is SQL locking behaviour (SKIP LOCKED, row locks, READ
-    # COMMITTED re-checks) that no mock reproduces.
+    # Integration tests run against real services, not mocks: the queue's correctness is SQL
+    # locking behaviour (SKIP LOCKED, row locks, READ COMMITTED re-checks) that no mock
+    # reproduces.
     services:
       postgres:
         image: postgres:16

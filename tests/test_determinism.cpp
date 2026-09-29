@@ -1,8 +1,4 @@
-// The project's headline guarantee: output is bit-identical regardless of
-// thread count. Adaptive timestepping is the change most likely to break
-// it -- dt is a *global* reduction that feeds back into every subsequent
-// step, so a thread-dependent dt makes the entire trajectory
-// thread-dependent while every per-particle test still passes.
+// The project's headline guarantee: output is bit-identical regardless of thread count.
 #include <gtest/gtest.h>
 #include <cstring>
 #include <vector>
@@ -24,9 +20,9 @@ using namespace aquasph;
 
 namespace {
 
-// Thread counts to compare. 8 is included deliberately even on a 4-core
-// machine: oversubscription changes scheduling, which is exactly the kind
-// of thing a fragile reduction would be sensitive to.
+// Thread counts to compare. 8 is included deliberately even on a 4-core machine:
+// oversubscription changes scheduling, which is exactly the kind of thing a fragile reduction
+// would be sensitive to.
 const std::vector<int> kThreadCounts = {1, 2, 4, 8};
 
 void setThreads(int t) {
@@ -134,9 +130,8 @@ TEST(Determinism, DeterministicMaxIsThreadCountIndependent) {
 }
 
 TEST(Determinism, DeterministicSumIsBitIdenticalAcrossThreadCounts) {
-    // Values chosen so that float addition genuinely reassociates: mixing
-    // magnitudes several orders apart is what makes a naive
-    // reduction(+:) thread-dependent in the last bits.
+    // Values chosen so that float addition genuinely reassociates: mixing magnitudes several
+    // orders apart is what makes a naive reduction(+:) thread-dependent in the last bits.
     const int n = 200000;
     std::vector<float> data(n);
     for (int i = 0; i < n; ++i) {

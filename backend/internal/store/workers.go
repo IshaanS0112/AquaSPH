@@ -25,9 +25,7 @@ func (s *Store) StopWorker(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-// LiveSolverIDs returns the distinct solver binaries of workers that
-// heartbeated within window. The API uses them to compute cache keys at
-// submit time; during a rolling deploy there are two.
+// LiveSolverIDs returns the distinct solver binaries of workers that heartbeated within window.
 func (s *Store) LiveSolverIDs(ctx context.Context, window time.Duration) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT DISTINCT solver_id FROM workers

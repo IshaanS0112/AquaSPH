@@ -45,9 +45,8 @@ type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-// InTx runs fn in a transaction, committing if it returns nil and rolling
-// back otherwise (including on panic, via the deferred Rollback, which is
-// a no-op after a successful Commit).
+// InTx runs fn in a transaction, committing if it returns nil and rolling back otherwise
+// (including on panic, via the deferred Rollback, which is a no-op after a successful Commit).
 func InTx(ctx context.Context, pool *pgxpool.Pool, fn func(pgx.Tx) error) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {

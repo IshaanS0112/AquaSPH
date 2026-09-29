@@ -38,24 +38,7 @@ def rel_error(measured, reference):
     return (measured - reference) / reference * 100.0
 
 
-# ---------------------------------------------------------------------
 # Dam break: surge front against the Ritter (1892) analytical solution.
-#
-# Ritter solves the shallow-water equations for an instantaneously
-# released reservoir of still depth h0 on a dry, frictionless, horizontal
-# bed. The leading characteristic travels at u_f = 2*sqrt(g*h0), so the
-# front position measured from the dam face is x_f = 2t*sqrt(g*h0).
-#
-# In the Martin & Moyce non-dimensionalisation used by this project's
-# metrics -- Z = (front position from the column's back wall) / a, and
-# T = t*sqrt(2g/a) -- with a column of height h0 = 2a:
-#
-#   Z(T) = 1 + 2t*sqrt(g*h0)/a
-#        = 1 + 2*T*sqrt(a/(2g))*sqrt(2ga)/a
-#        = 1 + 2T
-#
-# Derived here rather than cited so it can be checked line by line.
-# ---------------------------------------------------------------------
 def ritter_Z(T):
     return 1.0 + 2.0 * T
 
@@ -92,18 +75,7 @@ def dam_break_section():
     return "\n".join(out) + "\n", (pts, exp, rows)
 
 
-# ---------------------------------------------------------------------
 # Sloshing: measured oscillation period against two analytical results.
-#
-#   shallow-water (long-wave limit):  T = 2L / sqrt(g d)
-#   linear dispersion, first mode:    omega^2 = g k tanh(k d), k = pi/L
-#
-# The shallow-water form is the one the brief asks for; the dispersive
-# form is also reported because at d/L = 1/6 the tank is NOT deep in the
-# long-wave sense, and the two differ by about 4%. Quoting only the
-# closer one would be a way of hiding which model is actually being
-# tested.
-# ---------------------------------------------------------------------
 def sloshing_section(tank_length=0.6, depth=0.1):
     m = load("sloshing_tank")
     shallow = 2.0 * tank_length / math.sqrt(G * depth)
@@ -114,12 +86,7 @@ def sloshing_section(tank_length=0.6, depth=0.1):
     if not m:
         return ("_No sloshing_tank metrics found._\n", shallow, dispersive, None)
 
-    # The CENTROID is the primary instrument here, not the wall probes. A
-    # probe reads the topmost particle in a column, so its floor is one
-    # particle spacing -- and a standing wave small enough for linear
-    # theory to apply is smaller than that. The centre of mass averages
-    # over every fluid particle and has no such floor. The probes are
-    # reported alongside precisely so the difference is visible.
+    # The CENTROID is the primary instrument here, not the wall probes.
     osc = (m.get("centroid") or {}).get("oscillation") or {}
     measured = osc.get("period")
     cycles = osc.get("cycles_counted", 0)
@@ -152,11 +119,8 @@ def sloshing_section(tank_length=0.6, depth=0.1):
     return "\n".join(out) + "\n", shallow, dispersive, measured
 
 
-# ---------------------------------------------------------------------
-# Wave generator: measured wave train against linear (Biesel) piston
-# wavemaker theory, which the solver itself emits alongside the
-# measurement so the two cannot drift apart.
-# ---------------------------------------------------------------------
+# Wave generator: measured wave train against linear (Biesel) piston wavemaker theory, which the
+# solver itself emits alongside the measurement so the two cannot drift apart.
 def wave_section():
     m = load("controlled_wave_tank")
     if not m:
@@ -197,10 +161,8 @@ def write_plot(pts, exp):
     if not pts:
         return
 
-    # The tank is finite: once the surge reaches the far wall, Z stops
-    # growing and the record says nothing further about propagation. The
-    # plot is cut just past that point rather than showing a long flat
-    # tail that would make the agreement look better than it is.
+    # The tank is finite: once the surge reaches the far wall, Z stops growing and the record
+    # says nothing further about propagation.
     zlimit = max(p[1] for p in pts)
     saturated = [t for (t, z) in pts if z >= zlimit * 0.985]
     tmax = min(saturated) * 1.05 if saturated else max(p[0] for p in pts)

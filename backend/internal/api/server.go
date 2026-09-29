@@ -1,6 +1,5 @@
-// Package api is the HTTP interface: routing, authentication, rate
-// limiting, request/response encoding and SSE. Business rules live in
-// package service; this package translates.
+// Package api is the HTTP interface: routing, authentication, rate limiting, request/response
+// encoding and SSE.
 package api
 
 import (
@@ -154,8 +153,6 @@ func (s *Server) InternalHandler(metrics http.Handler) http.Handler {
 }
 
 // NewHTTPServer applies timeouts that protect against slow clients.
-// WriteTimeout is lifted per-request by the SSE handler, which is the
-// only long-lived response.
 func NewHTTPServer(addr string, h http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,

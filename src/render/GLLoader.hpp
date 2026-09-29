@@ -1,35 +1,11 @@
 #pragma once
 // Minimal, hand-rolled OpenGL 3.3 core function-pointer loader.
-//
-// WHY NOT SYSTEM <GL/gl.h>, OR GLAD/GLEW: modern OpenGL functions (almost
-// anything past the OpenGL 1.1 fixed-function subset) aren't necessarily
-// link-time symbols in the platform's GL library at all -- on every
-// platform the *correct* way to obtain them is a runtime lookup
-// (glXGetProcAddress / wglGetProcAddress / eglGetProcAddress, which GLFW
-// wraps uniformly as glfwGetProcAddress). A loader is therefore the right
-// tool on any machine, not a workaround. This file declares exactly the
-// GL 3.3 core entry points this renderer actually calls -- around sixty
-// once the screen-space fluid pipeline's framebuffer, float-texture and
-// uniform entry points are included -- rather than pulling in GLAD/GLEW
-// as an external dependency for that small a surface. Every signature and enum value below was cross-checked
-// against the Khronos OpenGL registry (registry.khronos.org/OpenGL-Refpages,
-// KhronosGroup/OpenGL-Registry api/GL/glcorearb.h) rather than written
-// from memory -- a wrong-but-valid enum constant produces no compiler
-// diagnostic and can be silently incorrect indefinitely. See
-// docs/architecture.md for one such error this check caught.
-//
-// Usage: call loadGLFunctions() exactly once, after
-// glfwMakeContextCurrent(), and check its return value before issuing
-// any other call in this namespace.
 
 #include <cstddef>
 
 namespace aquasph::gl {
 
-// --- Khronos platform typedefs -----------------------------------------
-// Fixed ABI types -- redeclaring these is standard practice for any
-// hand-written GL loader (GLAD's generated headers do the same thing),
-// not a deviation from the spec.
+// Khronos platform typedefs: fixed ABI types.
 using GLenum = unsigned int;
 using GLboolean = unsigned char;
 using GLbitfield = unsigned int;
@@ -42,7 +18,7 @@ using GLubyte = unsigned char;
 using GLsizeiptr = std::ptrdiff_t;
 using GLintptr = std::ptrdiff_t;
 
-// --- Constants (verified against the Khronos OpenGL registry) ---------
+// Constants (verified against the Khronos OpenGL registry)
 constexpr GLbitfield GL_DEPTH_BUFFER_BIT          = 0x00000100;
 constexpr GLbitfield GL_COLOR_BUFFER_BIT          = 0x00004000;
 constexpr GLboolean  GL_FALSE_V                   = 0;
@@ -66,10 +42,8 @@ constexpr GLenum     GL_LINK_STATUS               = 0x8B82;
 constexpr GLenum     GL_INFO_LOG_LENGTH           = 0x8B84;
 constexpr GLenum     GL_VERTEX_PROGRAM_POINT_SIZE = 0x8642;
 
-// --- Added for the screen-space fluid renderer -------------------------
-// Framebuffer objects, float textures and the state the SSFR passes need.
-// Same rule as above: every value cross-checked against the Khronos
-// registry rather than written from memory.
+// Added for the screen-space fluid renderer: framebuffer objects,
+// float textures and the state the SSFR passes need.
 constexpr GLbitfield GL_STENCIL_BUFFER_BIT        = 0x00000400;
 constexpr GLenum     GL_LINES                     = 0x0001;
 constexpr GLenum     GL_TRIANGLES                 = 0x0004;
@@ -113,7 +87,7 @@ constexpr GLenum     GL_DEPTH_ATTACHMENT          = 0x8D00;
 constexpr GLenum     GL_FRAMEBUFFER_COMPLETE      = 0x8CD5;
 constexpr GLenum     GL_MAX_TEXTURE_SIZE          = 0x0D33;
 
-// --- Function pointer types --------------------------------------------
+// Function pointer types
 using PFN_glGetString              = const GLubyte* (*)(GLenum name);
 using PFN_glClearColor             = void (*)(GLfloat, GLfloat, GLfloat, GLfloat);
 using PFN_glClear                  = void (*)(GLbitfield);
@@ -151,7 +125,7 @@ using PFN_glUniformMatrix4fv       = void (*)(GLint, GLsizei, GLboolean, const G
 using PFN_glUniform1f              = void (*)(GLint, GLfloat);
 using PFN_glUniform3f              = void (*)(GLint, GLfloat, GLfloat, GLfloat);
 
-// --- Added for the screen-space fluid renderer -------------------------
+// Added for the screen-space fluid renderer
 using PFN_glDrawElements           = void (*)(GLenum, GLsizei, GLenum, const void*);
 using PFN_glDepthMask              = void (*)(GLboolean);
 using PFN_glDepthFunc              = void (*)(GLenum);
@@ -180,11 +154,7 @@ using PFN_glUniform1i              = void (*)(GLint, GLint);
 using PFN_glUniform2f              = void (*)(GLint, GLfloat, GLfloat);
 using PFN_glUniform4f              = void (*)(GLint, GLfloat, GLfloat, GLfloat, GLfloat);
 
-// --- Global function pointers ------------------------------------------
-// Named identically to the real GL functions so call sites in
-// Shader.cpp/ParticleRenderer.cpp read exactly like normal OpenGL code
-// (and would need zero changes if this were ever swapped for real GLAD
-// output).
+// Global GL function pointers, named like the real GL functions so call sites read normally.
 extern PFN_glGetString              glGetString;
 extern PFN_glClearColor             glClearColor;
 extern PFN_glClear                  glClear;
@@ -250,10 +220,8 @@ extern PFN_glUniform1i              glUniform1i;
 extern PFN_glUniform2f              glUniform2f;
 extern PFN_glUniform4f              glUniform4f;
 
-// Resolves every pointer above via glfwGetProcAddress. Must be called
-// after glfwMakeContextCurrent(). Returns false -- and logs which symbol
-// failed to stderr -- if any come back null, which in practice means a
-// context older than 3.3 core.
+// Resolves every pointer above via glfwGetProcAddress.
+// Call exactly once, after a GL context is current and before any other GL call.
 bool loadGLFunctions();
 
 } // namespace aquasph::gl

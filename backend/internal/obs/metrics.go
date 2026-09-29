@@ -5,10 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
-// NewRegistry returns a registry with the standard Go runtime and process
-// collectors. A private registry, not the global default, so tests can
-// create as many as they like and nothing registers metrics by import
-// side effect.
+// NewRegistry returns a registry with the standard Go runtime and process collectors.
 func NewRegistry() *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -68,9 +65,8 @@ type APIMetrics struct {
 
 func NewAPIMetrics(reg prometheus.Registerer) *APIMetrics {
 	m := &APIMetrics{
-		// route is the ServeMux pattern ("GET /v1/jobs/{id}"), never the
-		// raw path: raw paths contain IDs, and one label value per job
-		// would grow the metric without bound.
+		// route is the ServeMux pattern ("GET /v1/jobs/{id}"), never the raw path: raw paths contain
+		// IDs, and one label value per job would grow the metric without bound.
 		Requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "aquasph_http_requests_total", Help: "HTTP requests by route and status code.",
 		}, []string{"route", "code"}),

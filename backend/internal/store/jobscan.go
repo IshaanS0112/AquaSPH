@@ -5,9 +5,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// JobColumns is the single column list every job query selects, paired
-// with ScanJob. Keeping both in one place means adding a column cannot
-// leave one query scanning a different shape from another.
+// JobColumns is the single column list every job query selects, paired with ScanJob.
 const JobColumns = `id, tenant_id, sweep_id, sweep_params, state, outcome, priority,
 	scenario, quality, sim_time, max_steps, max_particles, timeout_seconds,
 	spec, overrides, labels, spec_hash, allow_cache,

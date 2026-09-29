@@ -189,9 +189,7 @@ func TestConcurrentWorkersCompleteEachJobExactlyOnce(t *testing.T) {
 	}
 }
 
-// Eight workers claim simultaneously for a tenant limited to two. Without
-// the tenant row lock in claimOnce this fails intermittently (several
-// claims see running=1 and all proceed); with it, exactly two win.
+// Eight workers claim simultaneously for a tenant limited to two.
 func TestTenantConcurrencyLimitHoldsUnderSimultaneousClaims(t *testing.T) {
 	t.Parallel()
 	q, pool := newQueue(t)
@@ -254,9 +252,8 @@ func TestSaturatedTenantDoesNotBlockOtherTenants(t *testing.T) {
 	}
 }
 
-// Fencing: a worker whose lease expired and whose job was reclaimed must
-// not be able to write anything. This is the zombie-worker scenario (a
-// long GC pause or network partition, then the worker wakes up).
+// Fencing: a worker whose lease expired and whose job was reclaimed must not be able to write
+// anything.
 func TestExpiredLeaseHolderIsFencedOut(t *testing.T) {
 	t.Parallel()
 	q, pool := newQueue(t)

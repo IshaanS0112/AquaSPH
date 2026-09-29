@@ -11,10 +11,7 @@ using namespace gl;
 namespace {
 
 // #version 330 core matches this project's context-creation request
-// (GLFW_CONTEXT_VERSION_MAJOR/MINOR = 3.3, core profile) in
-// render_main.cpp -- must stay in sync with that request or context
-// creation will succeed while shader compilation fails (a real, easy-to-
-// hit mismatch bug if the two are ever changed independently).
+// (GLFW_CONTEXT_VERSION_MAJOR/MINOR = 3.3, core profile) in render_main.cpp.
 const char* kVertexSrc = R"GLSL(
 #version 330 core
 layout(location = 0) in vec3 aPos;
@@ -39,11 +36,8 @@ in float vSpeedNorm;
 out vec4 FragColor;
 
 void main() {
-    // Three-stop ramp within the project's one palette: deep teal at
-    // rest, through the fluid's own cyan, to a pale highlight at the
-    // scenario's reference speed. Kept in the same hue family as the
-    // surface renderer so a points frame and a surface frame of the same
-    // scenario read as the same fluid rather than two different systems.
+    // Three-stop ramp within the project's one palette: deep teal at rest, through the fluid's
+    // own cyan, to a pale highlight at the scenario's reference speed.
     vec3 slow = vec3(0.055, 0.180, 0.235);
     vec3 mid  = vec3(0.180, 0.560, 0.640);
     vec3 fast = vec3(0.850, 0.960, 0.980);
@@ -70,11 +64,8 @@ ParticleRenderer::ParticleRenderer(size_t maxParticles)
     ensureCapacity(maxParticles);
 }
 
-// GROWS ON DEMAND. v1 allocated once at "the run's fixed particle count"
-// because the count could not change; emitters made that false. The
-// buffer is reallocated with headroom rather than exactly, so a scenario
-// that adds a layer of particles every few steps does not stall the
-// pipeline on a fresh allocation every few steps.
+// GROWS ON DEMAND. v1 allocated once at "the run's fixed particle count" because the count
+// could not change; emitters made that false.
 void ParticleRenderer::ensureCapacity(size_t count) {
     if (count <= capacity_) return;
     capacity_ = std::max<size_t>(count * 2, 4096);

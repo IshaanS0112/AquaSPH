@@ -14,20 +14,7 @@ TimeStepController::TimeStepController(const TimeStepParams& params, float h,
 TimeStepInfo TimeStepController::compute(const std::vector<Particle>& particles) const {
     const int n = static_cast<int>(particles.size());
 
-    // Fixed-chunk deterministic reductions, NOT `reduction(max:)` -- see
-    // ParallelReduce.hpp for why the guarantee is made structural here
-    // even though max over finite floats happens to be order-independent.
-    // Boundary particles are excluded: a prescribed paddle velocity is not
-    // a stability constraint on the fluid integration, and including it
-    // would let a fast gate throttle the whole simulation.
-    //
-    // NaN HANDLING. std::max(x, NaN) returns x, so a NaN silently
-    // disappears from a max reduction -- the controller would compute a
-    // comfortable dt for a state that has already diverged, and the run
-    // would coast on to a misleading verdict. Non-finite values are
-    // therefore mapped to +infinity, which dominates the max
-    // deterministically and drives dt to its floor, where the stability
-    // check can see the state for what it is.
+    // Fixed-chunk deterministic reductions, NOT `reduction(max:)`.
     const auto finiteOrInf = [](float v) {
         return std::isfinite(v) ? v : std::numeric_limits<float>::infinity();
     };
@@ -63,10 +50,7 @@ TimeStepInfo TimeStepController::compute(const std::vector<Particle>& particles)
     float dt = std::min({info.dtCfl, info.dtForce, info.dtViscous});
 
     if (!std::isfinite(dt)) {
-        // Reached only when the state already contains NaN/Inf. Fall back
-        // to dt_min so the run continues to its stability verdict and
-        // reports UNSTABLE, rather than propagating a NaN dt and turning
-        // every subsequent diagnostic into NaN too.
+        // Reached only when the state already contains NaN/Inf.
         dt = params_.dtMin;
         info.clampedToMin = true;
     }

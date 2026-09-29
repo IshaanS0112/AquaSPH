@@ -21,10 +21,7 @@ std::string jsonEscape(const std::string& s) {
             case '\r': out += "\\r";  break;
             case '\t': out += "\\t";  break;
             default:
-                // Any other control character is invalid inside a JSON
-                // string. A scenario name or description containing one
-                // used to pass through raw and produce a metrics file no
-                // parser would accept.
+                // Any other control character is invalid inside a JSON string.
                 if (static_cast<unsigned char>(c) < 0x20) {
                     char buf[8];
                     std::snprintf(buf, sizeof buf, "\\u%04x", static_cast<unsigned>(c));
@@ -49,12 +46,9 @@ namespace {
 
 std::string num(double v) { return jsonNumber(v); }
 
-// Solve omega^2 = g k tanh(k d) for k, by bisection on a bracket that is
-// guaranteed to contain the root: the deep-water value k0 = omega^2/g is a
-// lower bound, and the shallow-water value omega/sqrt(gd) is an upper one.
-// Bisection rather than Newton because it cannot diverge and needs no
-// derivative -- 60 iterations is exact to float precision and costs
-// nothing at the once-per-run rate this is called.
+// Solve omega^2 = g k tanh(k d) for k, by bisection on a bracket that is guaranteed to contain
+// the root: the deep-water value k0 = omega^2/g is a lower bound, and the shallow-water value
+// omega/sqrt(gd) is an upper one.
 float solveDispersion(float omega, float depth, float g) {
     if (depth <= 0.0f || omega <= 0.0f || g <= 0.0f) return 0.0f;
     float lo = omega * omega / g;               // deep-water k
@@ -125,10 +119,8 @@ void MetricsCollector::sample(const Simulation& sim) {
         haveInitialVolume_ = true;
     }
 
-    // --- fluid centre of mass -----------------------------------------
-    // Mass-weighted, and taken with the same deterministic reductions as
-    // everything else: this is asserted on, so it must not wobble with
-    // thread count.
+    // Fluid centre of mass: mass-weighted, and taken with the same deterministic reductions as
+    // everything else: this is asserted on, so it must not wobble with thread count.
     const int fluidCount = static_cast<int>(particles.size() - begin);
     if (fluidCount > 0) {
         const double mass = reduce::deterministicSum(fluidCount, [&](int i) {
@@ -148,13 +140,11 @@ void MetricsCollector::sample(const Simulation& sim) {
         }
     }
 
-    // --- surge front -------------------------------------------------
+    // Surge front
     if (scenario_->metrics.trackSurgeFront) {
         const int axis = std::clamp(scenario_->metrics.surgeAxis, 0, 2);
-        // The FRONT is the toe of the surge: the furthest-travelled
-        // particle that is still in contact with the floor. Taking the
-        // furthest particle overall would track spray instead, which is
-        // both noisier and not what Martin & Moyce measured.
+        // The FRONT is the toe of the surge: the furthest-travelled particle that is still in
+        // contact with the floor.
         const float contactBand = floorY + 3.0f * sim.spacing();
         float front = -1.0e30f;
         for (size_t i = begin; i < particles.size(); ++i) {
@@ -176,7 +166,7 @@ void MetricsCollector::sample(const Simulation& sim) {
         }
     }
 
-    // --- probes -------------------------------------------------------
+    // Probes
     for (size_t pi = 0; pi < report_.probes.size(); ++pi) {
         const WaveProbe& spec = scenario_->metrics.probes[pi];
         ProbeSeries& series = report_.probes[pi];
@@ -191,22 +181,18 @@ void MetricsCollector::sample(const Simulation& sim) {
             top = std::max(top, x.y);
         }
         series.time.push_back(sim.time());
-        // An empty column reads as "dry", not as a gap, so the record
-        // stays a uniformly sampled time series that can be differenced
-        // and zero-crossed without special cases.
+        // An empty column reads as "dry", not as a gap, so the record stays a uniformly sampled
+        // time series that can be differenced and zero-crossed without special cases.
         const float elevation = (top > -1.0e29f) ? top : floorY;
         series.elevation.push_back(elevation);
         series.depth.push_back(elevation - floorY);
     }
 
-    // --- inundation ---------------------------------------------------
+    // Inundation
     if (scenario_->metrics.trackInundation) {
         report_.inundationTracked = true;
-        // Floor coverage on a fixed grid: a cell counts as inundated when
-        // the tallest fluid particle above it clears the threshold depth.
-        // Grid resolution is tied to the particle spacing, so the number
-        // is comparable across quality presets only to within one cell --
-        // stated in docs/gallery.md rather than presented as exact.
+        // Floor coverage on a fixed grid: a cell counts as inundated when the tallest fluid
+        // particle above it clears the threshold depth.
         const glm::vec3 lo = scenario_->domain.min;
         const glm::vec3 hi = scenario_->domain.max;
         const float cell = std::max(4.0f * sim.spacing(), 1.0e-3f);
@@ -246,26 +232,7 @@ WaveMeasurement MetricsCollector::measureWaveTrain(const std::vector<float>& tim
     mean /= static_cast<double>(elevation.size());
     m.meanLevel = static_cast<float>(mean);
 
-    // Zero UP-crossings of the de-meaned record. Up-crossings only, so
-    // each period is counted once; the interval between consecutive
-    // up-crossings is the wave period by definition, and the crest and
-    // trough between them give the height. Crossings are linearly
-    // interpolated so the period is not quantised to the sample interval.
-    //
-    // WITH A HYSTERESIS BAND, and it is not optional. A bare mean-crossing
-    // test counts every ripple that grazes the mean, so a fundamental
-    // carrying any higher-mode content is reported at a fraction of its
-    // true period. Measured on the sloshing tank before this was added:
-    // the two end-wall probes returned 0.554 s and 0.754 s for the same
-    // standing wave, against an analytical 1.26 s -- three different
-    // answers to one question, and the two measurements did not even agree
-    // with each other, which is what gave it away.
-    //
-    // The fix is the standard oceanographic one: after an accepted
-    // up-crossing, the signal must fall below -band before another
-    // up-crossing can be accepted, where band is a fraction of the
-    // record's RMS. That admits one crossing per genuine oscillation and
-    // rejects ripples riding on it.
+    // Zero UP-crossings of the de-meaned record.
     double sumSq = 0.0;
     for (float e : elevation) {
         const double d = e - m.meanLevel;
@@ -326,9 +293,8 @@ WavePrediction MetricsCollector::predictWave(const WaveGenerator& gen, float gra
     if (gen.stillWaterDepth <= 0.0f || gen.period <= 0.0f) return p;
     if (gen.mode != WaveGenerator::Mode::Sinusoidal &&
         gen.mode != WaveGenerator::Mode::Damped) {
-        // Linear monochromatic theory does not describe a single pulse or
-        // a superposition, so no prediction is offered rather than one
-        // that would be quietly wrong.
+        // Linear monochromatic theory does not describe a single pulse or a superposition, so
+        // no prediction is offered rather than one that would be quietly wrong.
         return p;
     }
 
@@ -399,10 +365,8 @@ void MetricsCollector::finish(const Simulation& sim, double wallSeconds, double 
         report_.wavePredictions.push_back(predictWave(wg, g));
     }
 
-    // The horizontal centre-of-mass oscillation, fitted with the same
-    // estimator as a wave probe. `depth` is passed as 0 because a
-    // centroid track has no free surface to derive a wavelength from --
-    // only the period and amplitude of the mode are meaningful here.
+    // The horizontal centre-of-mass oscillation, fitted with the same estimator as a wave
+    // probe.
     if (report_.centroid.time.size() >= 8) {
         report_.centroidOscillation =
             measureWaveTrain(report_.centroid.time, report_.centroid.x, 0.0f, g);

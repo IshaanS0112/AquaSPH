@@ -1,15 +1,4 @@
 // aquasph-loadgen measures the API's own overhead, not the solver's.
-//
-// Modes:
-//
-//	get     GET /v1/jobs/{id} for one existing job: auth + rate limit + one indexed read
-//	submit  POST /v1/jobs with a request that is already cached: the full submit path
-//	        (auth, rate limit, validation, JSON Pointer resolution, canonical hashing,
-//	        cache lookup, transactional insert) with zero solver time
-//	list    GET /v1/jobs?limit=20: keyset pagination
-//
-// It prints what it measured and nothing it did not. Use a tenant whose
-// rate limit is high enough, or you are measuring the 429 path.
 package main
 
 import (

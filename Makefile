@@ -1,10 +1,8 @@
-# Common tasks. Each target is a thin wrapper: the commands it runs are
-# the source of truth, and CI (.github/workflows/ci.yml) runs the same ones.
-#
-#   make solver test          C++ solver and its 89 tests
-#   make backend-test         Go unit + integration tests (needs Postgres and Redis)
-#   make e2e                  real binaries, real solver, failure injection
-#   make up / make down       the whole platform in Docker Compose
+# Common tasks; CI (.github/workflows/ci.yml) runs the same commands.
+#   make solver test    build the C++ solver and run its 89 tests
+#   make backend-test   Go unit + integration tests (needs Postgres and Redis)
+#   make e2e            real binaries, real solver, failure injection
+#   make up / make down the whole platform in Docker Compose
 
 GO_DIR := backend
 BUILD  := build

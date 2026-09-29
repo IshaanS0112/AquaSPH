@@ -10,9 +10,8 @@ namespace aquasph {
 
 namespace {
 
-// Emission is capped per step so that a pathologically large dt cannot
-// dump an unbounded number of layers at once. In a healthy run the
-// adaptive timestep keeps this at 0 or 1.
+// Emission is capped per step so that a pathologically large dt cannot dump an unbounded number
+// of layers at once.
 constexpr int kMaxLayersPerStep = 4;
 
 bool faceIsSolid(FaceMode m) { return m == FaceMode::Solid; }
@@ -34,9 +33,7 @@ Simulation::Simulation(const Scenario& scenario, size_t maxParticles)
 
     kernel_ = std::make_unique<CubicSplineKernel>(h_);
 
-    // Wave generators are obstacles with prescribed motion; they are
-    // materialised into the obstacle list here so that nothing downstream
-    // needs a second code path for them. A paddle IS an obstacle.
+    // Wave generators are obstacles with prescribed motion.
     for (const WaveGenerator& wg : scenario_.waveGenerators) {
         scenario_.obstacles.push_back(wg.toObstacle());
     }
@@ -44,10 +41,9 @@ Simulation::Simulation(const Scenario& scenario, size_t maxParticles)
         if (!o.motion.isStatic()) anyMovingObstacle_ = true;
     }
 
-    // The neighbour grid covers the domain PLUS the wall padding, so wall
-    // particles land in their own cells instead of all clamping into the
-    // outermost interior cell layer (which would make those buckets large
-    // and every query along a wall needlessly expensive).
+    // The neighbour grid covers the domain PLUS the wall padding, so wall particles land in
+    // their own cells instead of all clamping into the outermost interior cell layer (which
+    // would make those buckets large and every query along a wall needlessly expensive).
     const float pad = static_cast<float>(std::max(1, scenario_.domain.boundaryLayers) + 1) * boundarySpacing_;
     grid_ = std::make_unique<LinkedCell>(scenario_.domain.min - glm::vec3(pad),
                                           scenario_.domain.max + glm::vec3(pad), h_);
@@ -83,9 +79,7 @@ Simulation::Simulation(const Scenario& scenario, size_t maxParticles)
     buildBoundary();
     buildFluid();
 
-    // One grid build + boundary-volume pass before the run starts. Static
-    // geometry does not move, so for most scenarios this is the only time
-    // the volumes are ever computed.
+    // One grid build + boundary-volume pass before the run starts.
     grid_->build(particles_);
     computeBoundaryVolumes(particles_, *grid_, *kernel_, static_cast<int>(boundaryCount_));
 
@@ -105,11 +99,8 @@ void Simulation::buildBoundary() {
     if (scenario_.domain.boundaryParticles) {
         bool solid[6];
         for (int i = 0; i < 6; ++i) solid[i] = faceIsSolid(scenario_.domain.faces[i]);
-        // Layers are counted in BOUNDARY spacings, so halving the
-        // boundary spacing at a fixed layer count halves the wall's
-        // physical thickness too. Scale the count so the wall keeps the
-        // same thickness in metres, which is what actually determines
-        // whether fluid can tunnel through it.
+        // Layers are counted in BOUNDARY spacings, so halving the boundary spacing at a fixed
+        // layer count halves the wall's physical thickness too.
         const int layers = std::max(
             1, static_cast<int>(std::lround(scenario_.domain.boundaryLayers * spacing_ / boundarySpacing_)));
         sampleBoxWalls(scenario_.domain.min, scenario_.domain.max, boundarySpacing_,
@@ -146,11 +137,8 @@ void Simulation::buildBoundary() {
 }
 
 void Simulation::buildFluid() {
-    // Reserve for the initial fluid plus a generous estimate of what the
-    // emitters will add, so the array does not reallocate mid-run. This is
-    // an optimisation, not a correctness requirement -- reallocation would
-    // be safe (nothing holds a Particle* across a step) but it would show
-    // up as periodic step-time spikes in the benchmark.
+    // Reserve for the initial fluid plus a generous estimate of what the emitters will add, so
+    // the array does not reallocate mid-run.
     size_t estimate = particles_.size();
     for (const FluidRegion& r : scenario_.fluidRegions) {
         estimate += static_cast<size_t>(r.shape.approximateVolume() /
@@ -172,9 +160,6 @@ void Simulation::buildFluid() {
         const std::uint8_t mat = scenario_.materialIndex(region.material);
         const float rho0 = materials_[mat].restDensity;
         // m = rho0 * s^3: each particle owns one lattice cell of fluid.
-        // Deriving mass from spacing rather than reading it from config is
-        // the fix for the very first runtime bug this project hit; see
-        // docs/architecture.md.
         const float mass = rho0 * spacing_ * spacing_ * spacing_;
 
         glm::vec3 centre(0.0f);
@@ -196,9 +181,8 @@ void Simulation::buildFluid() {
 
     emitterSites_.resize(scenario_.emitters.size());
     for (size_t i = 0; i < scenario_.emitters.size(); ++i) {
-        // Centre-anchored: an emitter aperture is routinely thinner than
-        // one particle spacing, and a corner-anchored lattice can miss it
-        // entirely. See sampleVolumeCentered in scene/Shapes.hpp.
+        // Centre-anchored: an emitter aperture is routinely thinner than one particle spacing,
+        // and a corner-anchored lattice can miss it entirely.
         sampleVolumeCentered(scenario_.emitters[i].shape, spacing_, emitterSites_[i]);
         if (emitterSites_[i].empty()) {
             // Loud, because the alternative is a scenario that runs
@@ -215,9 +199,8 @@ void Simulation::updateObstacles(float t) {
     if (!anyMovingObstacle_) return;
 
     const int n = static_cast<int>(boundaryCount_);
-    // Evaluated once per obstacle, not once per particle: translationAt
-    // and velocityAt are pure functions of t, and velocityAt costs two
-    // TimeSeries evaluations.
+    // Evaluated once per obstacle, not once per particle: translationAt and velocityAt are pure
+    // functions of t, and velocityAt costs two TimeSeries evaluations.
     std::vector<glm::vec3> offset(scenario_.obstacles.size());
     std::vector<glm::vec3> vel(scenario_.obstacles.size());
     for (size_t i = 0; i < scenario_.obstacles.size(); ++i) {
@@ -267,9 +250,9 @@ int Simulation::runEmitters(float dt) {
         int layers = 0;
         while (e.layerDebt >= spacing_ && layers < kMaxLayersPerStep) {
             e.layerDebt -= spacing_;
-            // The remaining debt is how far this layer should already have
-            // travelled, so consecutive layers within one step land exactly
-            // `spacing` apart instead of on top of each other.
+            // The remaining debt is how far this layer should already have travelled, so
+            // consecutive layers within one step land exactly `spacing` apart instead of on top
+            // of each other.
             const glm::vec3 shift = dir * e.layerDebt;
 
             for (const glm::vec3& site : emitterSites_[ei]) {
@@ -315,12 +298,7 @@ bool Simulation::insideOpenExit(const glm::vec3& p) const {
 int Simulation::runSinks() {
     if (!needsCompaction_) return 0;
 
-    // STABLE, SERIAL COMPACTION. Order-preserving removal is what keeps the
-    // array a pure function of the scenario and the step count: a parallel
-    // scatter would produce a different surviving order per thread count,
-    // and every later neighbour sum would then be a differently-ordered
-    // float sum. It is O(N) with trivial per-particle work, alongside
-    // O(N * neighbours) loops -- not worth the risk to thread.
+    // Stable, serial compaction keeps particle order identical at any thread count.
     const size_t begin = boundaryCount_;
     size_t write = begin;
     int removed = 0;
@@ -371,24 +349,8 @@ const StepStats& Simulation::step() {
         grid_->build(particles_);
     }
     if (anyMovingObstacle_) {
-        // WHY NOT EVERY STEP. A rigid translation does not change
-        // distances *within* one obstacle at all -- only between a moving
-        // paddle and the tank walls it slides past -- so the Akinci
-        // volumes barely change from one step to the next. Recomputing
-        // them unconditionally is a full O(N_boundary * neighbours) pass
-        // per step, comparable in cost to the density pass. Measured on
-        // the wave tank at 17,000 boundary particles it was the single
-        // largest stage in the run, and it is why a 4.5 s flume was
-        // taking longer than the 218k-particle dam break.
-        //
-        // The volumes are instead refreshed once the largest obstacle
-        // displacement since the last rebuild exceeds a quarter of the
-        // boundary spacing -- the scale at which inter-particle distances
-        // could have changed enough to matter. That bounds staleness by
-        // geometry rather than by an arbitrary step count, so a fast
-        // paddle rebuilds often and a slow gate rarely, and it stays
-        // exactly reproducible because the trigger is a pure function of
-        // time.
+        // WHY NOT EVERY STEP. A rigid translation does not change distances *within* one
+        // obstacle at all.
         float drift = 0.0f;
         for (size_t i = 0; i < scenario_.obstacles.size(); ++i) {
             const glm::vec3 offset = scenario_.obstacles[i].motion.translationAt(time_);
@@ -423,17 +385,7 @@ const StepStats& Simulation::step() {
         ts = timestep_->compute(particles_);
     }
 
-    // The integrator re-evaluates forces once mid-step, through this
-    // callback. That evaluation is charged to `forces` -- so the force
-    // column means "all force evaluation", not "the first one only",
-    // which would understate it by about half.
-    //
-    // The timers therefore NEST, and a naive nested timer double-counts:
-    // the first version of this profile charged the mid-step force
-    // evaluation to both columns, reported integration as 27% of step
-    // time, and summed to 260 ms/step against a measured 189 ms/step
-    // wall clock. The nested time is subtracted here so every column is
-    // exclusive and the total is meaningful.
+    // The integrator re-evaluates forces once mid-step, through this callback.
     const auto recompute = [&](std::vector<Particle>& p) {
         StageTimer t(&profile_.forces, profiling_);
         computeForces(p, *grid_, *kernel_, forceParams_);
@@ -527,22 +479,13 @@ int Simulation::unstableCount() const {
     const glm::vec3& lo = scenario_.domain.min;
     const glm::vec3& hi = scenario_.domain.max;
     const FaceMode* f = scenario_.domain.faces;
-    // Half a particle spacing, not a fixed millimetre: fluid resting
-    // against a boundary genuinely sits within half a spacing of the
-    // nominal domain plane (the no-penetration surface is midway to the
-    // first boundary layer), so a fixed absolute tolerance either flags
-    // settled fluid as unstable at fine resolution or misses real escapes
-    // at coarse resolution. This scales with the discretisation the same
-    // way the containment tolerance does, and is deliberately the looser
-    // of the two so containment fires before instability is declared.
+    // Half a particle spacing, so the tolerance scales with resolution.
     const float tol = 0.5f * spacing_;
 
     return static_cast<int>(reduce::deterministicCount(n - b, [&](int i) {
         const glm::vec3& x = particles_[static_cast<size_t>(b + i)].position;
         if (!std::isfinite(x.x) || !std::isfinite(x.y) || !std::isfinite(x.z)) return true;
-        // An Open face is an exit, not a containment failure. Counting
-        // departures through one as instability would mark every flood,
-        // channel and river scenario UNSTABLE by construction.
+        // An Open face is an exit, not a containment failure.
         if (f[0] != FaceMode::Open && x.x < lo.x - tol) return true;
         if (f[1] != FaceMode::Open && x.x > hi.x + tol) return true;
         if (f[2] != FaceMode::Open && x.y < lo.y - tol) return true;

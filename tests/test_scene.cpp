@@ -1,6 +1,5 @@
-// Scenario primitives. The architectural claim this project makes is that
-// a new phenomenon is new JSON plus existing primitives; these tests pin
-// down the primitives that claim rests on.
+// Scenario primitives. The architectural claim this project makes is that a new phenomenon is
+// new JSON plus existing primitives.
 #include <gtest/gtest.h>
 #include <cmath>
 #include <cstdio>
@@ -14,7 +13,7 @@
 
 using namespace aquasph;
 
-// --- Shapes -----------------------------------------------------------
+// Shapes
 
 TEST(Shapes, BoxContainsAndErodes) {
     Shape s;
@@ -93,12 +92,9 @@ TEST(Shapes, VolumeSamplingFillsAndShellSamplingDoesNot) {
     EXPECT_GT(full.size(), shell.size());
     EXPECT_GT(shell.size(), 0u);
 
-    // Asserted as properties rather than an exact count: erosion compares
-    // a lattice coordinate against min + d, and for a lattice whose step
-    // divides d exactly those are a float ULP apart, so whether the
-    // innermost ring lands in the shell is a rounding tie. The shell being
-    // one ring thicker than nominal is harmless -- and is the safe
-    // direction, since a shell that is too THIN is how fluid leaks.
+    // Asserted as properties rather than an exact count: erosion compares a lattice coordinate
+    // against min + d, and for a lattice whose step divides d exactly those are a float ULP
+    // apart, so whether the innermost ring lands in the shell is a rounding tie.
     for (const glm::vec3& p : shell) EXPECT_TRUE(s.contains(p));
     // The outer skin is definitely in; the centre is definitely out.
     const auto has = [&](const glm::vec3& q) {
@@ -121,9 +117,9 @@ TEST(Shapes, BoxWallsHonourOpenFaces) {
 
     EXPECT_GT(closed.size(), open.size());
     for (const glm::vec3& p : open) {
-        // Nothing may be placed above the open +y face except where it is
-        // also outside a solid side wall (a corner), which is deliberate:
-        // omitting corners would punch holes through the solid walls.
+        // Nothing may be placed above the open +y face except where it is also outside a solid
+        // side wall (a corner), which is deliberate: omitting corners would punch holes through
+        // the solid walls.
         if (p.y > hi.y + 0.025f) {
             const bool outsideASolidSide =
                 p.x < lo.x - 0.025f || p.x > hi.x + 0.025f ||
@@ -133,7 +129,7 @@ TEST(Shapes, BoxWallsHonourOpenFaces) {
     }
 }
 
-// --- TimeSeries -------------------------------------------------------
+// TimeSeries
 
 TEST(TimeSeriesTest, ConstantRampAndPulse) {
     TimeSeries c;
@@ -194,7 +190,7 @@ TEST(TimeSeriesTest, DampedDecaysToTheOffset) {
     EXPECT_LT(std::abs(d.at(4.0f)), 1e-6f);
 }
 
-// --- Motion (prescribed moving boundaries) ----------------------------
+// Motion (prescribed moving boundaries)
 
 TEST(MotionTest, StaticMotionReportsItselfAsStatic) {
     Motion m;
@@ -210,12 +206,7 @@ TEST(MotionTest, OscillatingPaddleVelocityMatchesTheAnalyticDerivative) {
     m.displacement.value = 0.05f;
     m.displacement.period = 2.0f;
 
-    // d/dt [A sin(omega t)] = A omega cos(omega t); at t = 0 that is
-    // A*omega = 0.05 * pi.
-    // Sampled away from t = start: the series is defined as `offset` for
-    // t < start, so a central difference exactly at the start time
-    // straddles that switch and reports half the true slope. Everywhere
-    // else it is the analytic derivative.
+    // d/dt [A sin(omega t)] = A omega cos(omega t); at t = 0 that is A*omega = 0.05 * pi.
     const float omega = 2.0f * 3.14159265f / 2.0f;
     EXPECT_NEAR(m.velocityAt(0.5f).x, 0.0f, 1e-3f);            // stroke extreme
     EXPECT_NEAR(m.velocityAt(1.0f).x, -0.05f * omega, 1e-3f);  // fastest, returning
@@ -223,7 +214,7 @@ TEST(MotionTest, OscillatingPaddleVelocityMatchesTheAnalyticDerivative) {
     EXPECT_FALSE(m.isStatic());
 }
 
-// --- Scenario loading -------------------------------------------------
+// Scenario loading
 
 TEST(ScenarioLoaderTest, RoundTripsACompositionOfPrimitives) {
     const char* kJson = R"JSON({
@@ -311,12 +302,7 @@ TEST(ScenarioLoaderTest, RoundTripsACompositionOfPrimitives) {
     ASSERT_EQ(s.metrics.probes.size(), 1u);
 }
 
-// The loader's documented contract is that it reports and falls back
-// rather than throwing. Until this was added it did not honour that:
-// nlohmann's accessors throw when a field holds the wrong type, nothing
-// caught it, and a scenario file with one mistyped field aborted the
-// process with a bare `terminate called after throwing` -- the least
-// useful possible response to a typo.
+// The loader's documented contract is that it reports and falls back rather than throwing.
 TEST(ScenarioLoaderTest, MistypedFieldIsReportedRatherThanThrown) {
     const char* kBad = R"JSON({
       "name": "bad_scenario",
@@ -357,9 +343,8 @@ TEST(ScenarioLoaderTest, MissingFileReportsRatherThanThrows) {
 }
 
 TEST(ScenarioTest, ResolutionScaleKeepsTheHToSpacingRatioFixed) {
-    // The whole point of the quality presets: changing resolution must
-    // change how finely the fluid is sampled, never how well-conditioned
-    // the kernel sums are.
+    // The whole point of the quality presets: changing resolution must change how finely the
+    // fluid is sampled, never how well-conditioned the kernel sums are.
     Numerics n;
     n.h = 0.04f;
     n.spacingRatio = 0.5f;
@@ -369,7 +354,7 @@ TEST(ScenarioTest, ResolutionScaleKeepsTheHToSpacingRatioFixed) {
     }
 }
 
-// --- Wave generation --------------------------------------------------
+// Wave generation
 
 TEST(WaveGeneratorTest, ProducesAPaddleObstacleWithPrescribedMotion) {
     WaveGenerator wg;
@@ -452,13 +437,9 @@ TEST(WaveMeasurementTest, RecoversAmplitudeAndPeriodFromASyntheticRecord) {
     EXPECT_GE(m.wavesCounted, 4);
 }
 
-// REGRESSION TEST FOR A REAL MEASUREMENT BUG. A bare mean-crossing test
-// counts every ripple that grazes the mean, so a fundamental carrying any
-// higher-mode content is reported at a fraction of its true period.
-// Measured on the sloshing tank before the hysteresis band was added, the
-// two end-wall probes returned 0.554 s and 0.754 s for the same standing
-// wave against an analytical 1.26 s. Two probes disagreeing about one
-// standing wave is what gave it away.
+// REGRESSION TEST FOR A REAL MEASUREMENT BUG. A bare mean-crossing test counts every ripple
+// that grazes the mean, so a fundamental carrying any higher-mode content is reported at a
+// fraction of its true period.
 TEST(WaveMeasurementTest, RejectsRipplesRidingOnTheFundamental) {
     const float fundamental = 1.25f;
     const float amplitude = 0.02f;

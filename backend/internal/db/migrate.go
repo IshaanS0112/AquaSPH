@@ -53,14 +53,8 @@ func Migrations() ([]Migration, error) {
 	return out, nil
 }
 
-// Migrate applies every embedded migration not yet recorded in
-// schema_migrations, each in its own transaction.
-//
-// Why not golang-migrate or goose: this is ~80 lines, has no dependency,
-// and does the two things those tools do that matter here: it holds an
-// advisory lock so concurrent starters cannot race, and it refuses to run
-// if an already-applied migration file was edited (checksum mismatch),
-// which is how schemas silently diverge between environments.
+// Migrate applies every embedded migration not yet recorded in schema_migrations, each in its
+// own transaction, and refuses to run if an applied migration file was edited.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	migrations, err := Migrations()
 	if err != nil {

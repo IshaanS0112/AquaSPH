@@ -44,9 +44,8 @@ Shader::Shader(const std::string& vertexSrc, const std::string& fragmentSrc) {
     GLint success = GL_FALSE_V;
     glGetProgramiv(program_, GL_LINK_STATUS, &success);
 
-    // Shader objects are ref-counted by attachment; safe (and correct
-    // practice) to delete the stage objects right after linking -- the
-    // linked program keeps whatever it needs.
+    // Shader objects are ref-counted by attachment; safe (and correct practice) to delete the
+    // stage objects right after linking.
     glDeleteShader(vs);
     glDeleteShader(fs);
 

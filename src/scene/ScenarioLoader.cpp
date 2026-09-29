@@ -30,10 +30,8 @@ FaceMode faceModeOf(const std::string& s, const std::string& where) {
     if (s == "solid") return FaceMode::Solid;
     if (s == "open") return FaceMode::Open;
     if (s == "periodic") {
-        // Named explicitly rather than falling into the generic "unknown
-        // mode" branch, because someone asking for it deserves to know it
-        // was considered and why it is not there -- see the note on
-        // FaceMode in core/Integrator.hpp.
+        // Named explicitly rather than falling into the generic "unknown mode" branch, because
+        // someone asking for it deserves to know it was considered and why it is not there.
         std::cerr << "[ScenarioLoader] Face mode 'periodic' is not supported (" << where
                   << "). Wrapping positions without a minimum-image convention in the "
                      "neighbour search gives a spurious free surface at the wrap plane, "
@@ -83,9 +81,7 @@ Shape readShape(const json& j, const std::string& where) {
     s.halfLength = j.value("half_length", s.halfLength);
     s.axis = axisOf(j, "axis", s.axis);
 
-    // A "column" is a box named for what it means in a dam break; it also
-    // accepts the friendlier base/size form so a scenario author does not
-    // have to add heights by hand.
+    // A "column" is a box named for what it means in a dam break.
     if (j.contains("base") && j.contains("size")) {
         const glm::vec3 base = vec3Of(j["base"], glm::vec3(0.0f));
         const glm::vec3 size = vec3Of(j["size"], glm::vec3(1.0f));
@@ -182,14 +178,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         return false;
     }
 
-    // EVERYTHING BELOW IS INSIDE A try. The loader's documented contract
-    // is that it reports and falls back rather than throwing, and until
-    // this was added it did not honour that: nlohmann's accessors throw
-    // type_error when a field holds the wrong type (a string where a
-    // number is expected, an object where an array is), and nothing caught
-    // it. A scenario file with one mistyped field would abort the process
-    // with a bare `terminate called after throwing`, which is the least
-    // useful possible response to a typo.
+    // EVERYTHING BELOW IS INSIDE A try.
     try {
     Scenario s;
     s.name = j.value("name", std::filesystem::path(path).stem().string());
@@ -198,7 +187,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
     const int tier = j.value("tier", 1);
     s.tier = (tier >= 2) ? Tier::Two : Tier::One;
 
-    // --- domain ---
+    // Domain
     if (j.contains("domain")) {
         const json& d = j["domain"];
         s.domain.min = readVec3(d, "min", s.domain.min);
@@ -221,13 +210,13 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
 
     s.gravity = readVec3(j, "gravity", s.gravity);
 
-    // --- materials ---
+    // Materials
     if (j.contains("materials") && j["materials"].is_array() && !j["materials"].empty()) {
         s.materials.clear();
         for (const json& m : j["materials"]) s.materials.push_back(readMaterial(m));
     }
 
-    // --- fluid regions ---
+    // Fluid regions
     if (j.contains("fluid_regions")) {
         for (const json& r : j["fluid_regions"]) {
             FluidRegion region;
@@ -246,7 +235,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         }
     }
 
-    // --- emitters ---
+    // Emitters
     if (j.contains("emitters")) {
         for (const json& e : j["emitters"]) {
             Emitter em;
@@ -263,7 +252,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         }
     }
 
-    // --- sinks ---
+    // Sinks
     if (j.contains("sinks")) {
         for (const json& k : j["sinks"]) {
             Sink sk;
@@ -274,7 +263,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         }
     }
 
-    // --- obstacles ---
+    // Obstacles
     if (j.contains("obstacles")) {
         for (const json& o : j["obstacles"]) {
             Obstacle obs;
@@ -292,7 +281,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         }
     }
 
-    // --- external forces ---
+    // External forces
     if (j.contains("external_forces")) {
         for (const json& f : j["external_forces"]) {
             ExternalForce ef;
@@ -305,7 +294,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         }
     }
 
-    // --- wave generators ---
+    // Wave generators
     if (j.contains("wave_generators")) {
         for (const json& w : j["wave_generators"]) {
             WaveGenerator wg;
@@ -341,7 +330,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         }
     }
 
-    // --- numerics ---
+    // Numerics
     if (j.contains("numerics")) {
         const json& n = j["numerics"];
         s.numerics.h = n.value("h", s.numerics.h);
@@ -355,7 +344,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         s.numerics.timestep.dtMax = n.value("dt_max", s.numerics.timestep.dtMax);
     }
 
-    // --- duration ---
+    // Duration
     if (j.contains("duration")) {
         const json& d = j["duration"];
         s.duration.simulatedTime = d.value("simulated_time", s.duration.simulatedTime);
@@ -363,7 +352,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         s.duration.maxSteps = d.value("max_steps", s.duration.maxSteps);
     }
 
-    // --- camera / lighting / render ---
+    // Camera / lighting / render
     if (j.contains("camera")) {
         const json& c = j["camera"];
         s.camera.target = readVec3(c, "target", s.camera.target);
@@ -398,7 +387,7 @@ bool ScenarioLoader::loadFile(const std::string& path, Scenario& out, std::strin
         s.render.showFloor = r.value("show_floor", s.render.showFloor);
     }
 
-    // --- metrics ---
+    // Metrics
     if (j.contains("metrics")) {
         const json& m = j["metrics"];
         s.metrics.trackSurgeFront = m.value("track_surge_front", s.metrics.trackSurgeFront);

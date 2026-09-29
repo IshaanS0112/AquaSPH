@@ -62,9 +62,9 @@ type multi []string
 func (m *multi) String() string     { return strings.Join(*m, ",") }
 func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
-// parseValue reads a flag value as JSON when it is valid JSON (numbers,
-// booleans, arrays, quoted strings) and as a bare string otherwise, so
-// --set /materials/0/name=oil works without shell-quoting quotes.
+// parseValue reads a flag value as JSON when it is valid JSON (numbers, booleans, arrays,
+// quoted strings) and as a bare string otherwise, so --set /materials/0/name=oil works without
+// shell-quoting quotes.
 func parseValue(s string) any {
 	var v any
 	if err := json.Unmarshal([]byte(s), &v); err == nil {

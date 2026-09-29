@@ -2,10 +2,8 @@
 
 namespace aquasph {
 
-// Centralized physical/numerical constants so magic numbers don't get
-// scattered across the codebase. Every value here documents where it
-// comes from and why it has this value (see project notes: "Document
-// every magic number").
+// Centralized physical/numerical constants so magic numbers don't get scattered across the
+// codebase.
 namespace constants {
 
 constexpr float kPi = 3.14159265358979323846f;

@@ -1,9 +1,4 @@
 // Package config loads process configuration from the environment.
-//
-// Every setting is an AQUASPH_* environment variable with a validated
-// default. Loading collects *all* problems and reports them together, so
-// a misconfigured deployment fails once with a complete list instead of
-// once per variable.
 package config
 
 import (

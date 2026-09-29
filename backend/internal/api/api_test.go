@@ -172,11 +172,7 @@ func expect(t *testing.T, r resp, status int) {
 
 var damBreak = map[string]any{"scenario": "dam_break", "quality": "low", "sim_time": 0.1}
 
-// ---------------------------------------------------------------------------
-
-// The spec and the router must describe the same API. Parsing is
-// line-based on purpose (no YAML dependency): paths sit at two-space
-// indent, operations at four.
+// The spec and the router must describe the same API.
 func TestEveryRouteIsDocumentedAndEveryDocumentedRouteExists(t *testing.T) {
 	documented := map[string]bool{}
 	var path string

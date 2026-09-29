@@ -4,16 +4,7 @@
 
 namespace aquasph {
 
-// A framebuffer object with one or two colour attachments and an optional
-// depth attachment.
-//
-// The screen-space fluid pipeline is a chain of full-screen passes, so
-// nearly everything it does is "render into a texture and read it back in
-// the next pass". Wrapping that in one type keeps the pass code readable
-// and, more importantly, puts the completeness check in one place: an
-// incomplete FBO does not raise an error, it silently discards every
-// draw, and the resulting all-black output is indistinguishable from a
-// shader bug.
+// A framebuffer object with one or two colour attachments and an optional depth attachment.
 class OffscreenTarget {
 public:
     enum class Format {
@@ -39,9 +30,8 @@ public:
     int width() const { return width_; }
     int height() const { return height_; }
 
-    // Reads the colour attachment back as tightly packed RGB8, bottom row
-    // first (OpenGL's own order), flipped to top row first so it can be
-    // handed straight to a PNG writer.
+    // Reads the colour attachment back as tightly packed RGB8, bottom row first (OpenGL's own
+    // order), flipped to top row first so it can be handed straight to a PNG writer.
     std::vector<unsigned char> readRGB() const;
 
 private:
@@ -57,11 +47,7 @@ private:
     gl::GLuint depth_ = 0;
 };
 
-// A single triangle covering the viewport, used by every full-screen
-// pass. One triangle rather than two: a quad's diagonal makes the GPU
-// shade the pixels along it twice (quad-granularity derivatives straddle
-// the seam), and there is nothing a quad does here that a single
-// oversized triangle does not.
+// A single triangle covering the viewport, used by every full-screen pass.
 class FullScreenTriangle {
 public:
     FullScreenTriangle();

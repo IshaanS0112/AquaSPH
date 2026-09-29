@@ -1,23 +1,11 @@
 # syntax=docker/dockerfile:1
-#
-# One image for every AquaSPH service: aquasph-api, aquasph-worker,
-# aquasph-admin and aquactl, plus the solver the worker runs. One image
-# means the API, the worker and the solver in a deployment always come
-# from the same commit; the worker's solver_id (the solver binary's hash)
-# then changes exactly when the image does, which is what the result
-# cache relies on (docs/platform/adr/0002-content-addressed-cache.md).
-#
+# One image for every AquaSPH service (api, worker, admin, aquactl) plus the solver.
 #   docker build -t aquasph --build-arg GIT_REV=$(git rev-parse --short HEAD) .
-#
-# Ubuntu 24.04 for the C++ stages because it is the toolchain the solver
-# is tested with (GCC 13, as on the CI runners). The result cache relies
-# on bit-reproducible output, and floating-point results are only
-# guaranteed identical for the same compiler: another GCC may contract
-# a*b+c into an FMA differently.
+# Ubuntu 24.04 is the compiler the solver is tested with, so results match bit for bit.
 
 ARG BASE=ubuntu:24.04
 
-# ---- 1. solver (C++17, OpenMP) ------------------------------------------
+# Stage 1: solver (C++17, OpenMP)
 FROM ${BASE} AS solver
 RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential cmake git ca-certificates \
@@ -35,7 +23,7 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DAQUASPH_BUILD_TESTS=OFF \
  && cmake --build build --target aquasph -j"$(nproc)" \
  && strip build/aquasph
 
-# ---- 2. control plane (Go, static) --------------------------------------
+# Stage 2: control plane (Go, static)
 FROM golang:1.25-bookworm AS control
 WORKDIR /src/backend
 COPY backend/go.mod backend/go.sum ./
@@ -43,7 +31,7 @@ RUN go mod download
 COPY backend/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
 
-# ---- 3. runtime -----------------------------------------------------------
+# Stage 3: runtime
 FROM ${BASE}
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libgomp1 ca-certificates \

@@ -1,6 +1,4 @@
-// aquasph-admin is the operator tool: migrations, tenants, API keys,
-// workers and queue state. It talks to Postgres directly (there is no
-// admin HTTP API to secure), using AQUASPH_DATABASE_URL.
+// aquasph-admin is the operator tool: migrations, tenants, API keys, workers and queue state.
 package main
 
 import (

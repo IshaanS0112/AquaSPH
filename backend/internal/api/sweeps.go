@@ -138,10 +138,9 @@ func (s *Server) sweepResults(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// csvCell renders one value. Strings that a spreadsheet would evaluate as
-// a formula (=, +, -, @, tab, CR at the start) are prefixed with a quote:
-// grid values are user-supplied, and a results CSV is exactly the file
-// someone opens in Excel. Numbers are left alone, so -0.5 stays a number.
+// csvCell renders one value. Strings that a spreadsheet would evaluate as a formula (=, +, -,
+// @, tab, CR at the start) are prefixed with a quote: grid values are user-supplied, and a
+// results CSV is exactly the file someone opens in Excel.
 func csvCell(v any) string {
 	switch t := v.(type) {
 	case nil:

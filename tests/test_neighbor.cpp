@@ -22,10 +22,9 @@ std::vector<Particle> makeLattice(int n, float spacing) {
 } // namespace
 
 TEST(LinkedCell, InteriorParticleSeesFullTwentySevenCellBlock) {
-    // 7^3 lattice with spacing == cellSize puts exactly one particle per
-    // cell, so the particle at the lattice center should see exactly 27
-    // candidates (its own cell + all 26 neighbors, none clipped by the
-    // domain boundary).
+    // 7^3 lattice with spacing == cellSize puts exactly one particle per cell, so the particle
+    // at the lattice center should see exactly 27 candidates (its own cell + all 26 neighbors,
+    // none clipped by the domain boundary).
     const int n = 7;
     const float spacing = 0.1f;
     auto particles = makeLattice(n, spacing);
@@ -78,11 +77,7 @@ TEST(LinkedCell, RebuildReflectsMovedParticles) {
     LinkedCell grid(glm::vec3(0.0f), glm::vec3(static_cast<float>(n) * spacing), spacing);
     grid.build(particles);
 
-    // Move particle 0 far away from its original cell, rebuild, and
-    // confirm the candidate set near the origin (queried via particle 1,
-    // which stayed put) no longer contains it. getNeighbors() indexes
-    // into the same particle array used to build the grid, so we query
-    // through an existing nearby particle rather than a standalone probe.
+    // Move particle 0 away, rebuild, and check the neighbours of particle 1 no longer include it.
     particles[0].position = glm::vec3(static_cast<float>(n) * spacing - 0.01f);
     grid.build(particles);
 

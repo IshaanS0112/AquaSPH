@@ -11,9 +11,8 @@ float rampEnvelope(float t, float start, float rampTime) {
     const float u = (t - start) / rampTime;
     if (u <= 0.0f) return 0.0f;
     if (u >= 1.0f) return 1.0f;
-    // Smoothstep rather than linear: a linear ramp has a discontinuous
-    // second derivative at both ends, which a wave paddle turns into a
-    // small but measurable transient.
+    // Smoothstep rather than linear: a linear ramp has a discontinuous second derivative at
+    // both ends, which a wave paddle turns into a small but measurable transient.
     return u * u * (3.0f - 2.0f * u);
 }
 } // namespace

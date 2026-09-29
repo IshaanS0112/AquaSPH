@@ -44,15 +44,13 @@ void OffscreenTarget::allocate() {
     glBindTexture(GL_TEXTURE_2D, color_);
     glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(fi.internalFormat), width_, height_, 0,
                   fi.format, fi.type, nullptr);
-    // LINEAR everywhere: the smoothing and composite passes sample at
-    // exact texel centres, so filtering is not doing interpolation work,
-    // but linear keeps the refraction offset -- which deliberately samples
-    // off-centre -- from stair-stepping.
+    // LINEAR everywhere: the smoothing and composite passes sample at exact texel centres, so
+    // filtering is not doing interpolation work, but linear keeps the refraction offset.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // CLAMP_TO_EDGE, not repeat: a refraction offset near the frame edge
-    // would otherwise wrap around and sample the opposite side of the
-    // image, which reads as a bright seam along the border.
+    // CLAMP_TO_EDGE, not repeat: a refraction offset near the frame edge would otherwise wrap
+    // around and sample the opposite side of the image, which reads as a bright seam along the
+    // border.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -79,9 +77,8 @@ void OffscreenTarget::allocate() {
     const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        // Loudly, at construction. An incomplete FBO discards every draw
-        // silently, and the resulting black frame looks exactly like a
-        // broken shader.
+        // Loudly, at construction. An incomplete FBO discards every draw silently, and the
+        // resulting black frame looks exactly like a broken shader.
         throw std::runtime_error("Framebuffer incomplete (status 0x" +
                                   std::to_string(status) + ") at " +
                                   std::to_string(width_) + "x" + std::to_string(height_) +
@@ -113,9 +110,7 @@ void OffscreenTarget::bindDefault(int width, int height) {
 std::vector<unsigned char> OffscreenTarget::readRGB() const {
     std::vector<unsigned char> raw(static_cast<size_t>(width_) * height_ * 3);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
-    // Default pack alignment is 4; a width whose byte-length is not a
-    // multiple of 4 would otherwise be read back with padding and every
-    // row after the first would be skewed.
+    // Default pack alignment is 4.
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, width_, height_, GL_RGB, GL_UNSIGNED_BYTE, raw.data());
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -133,9 +128,8 @@ std::vector<unsigned char> OffscreenTarget::readRGB() const {
 }
 
 FullScreenTriangle::FullScreenTriangle() {
-    // No vertex buffer at all: the vertex shader generates the three
-    // clip-space corners from gl_VertexID. A VAO must still be bound for
-    // a draw call to be legal in the core profile, so an empty one is.
+    // No vertex buffer at all: the vertex shader generates the three clip-space corners from
+    // gl_VertexID.
     glGenVertexArrays(1, &vao_);
 }
 

@@ -35,17 +35,6 @@ type FieldError struct {
 }
 
 // Override applies one pointer override to spec.
-//
-// Two rules, both there to catch mistakes at submit time instead of after
-// minutes of compute:
-//
-//  1. The target must already exist. The solver ignores unknown keys, so
-//     "/numerics/xsph" (a typo for xsph_epsilon) would otherwise be
-//     accepted, ignored, and cost a full run that varies nothing.
-//  2. The new value must have the same JSON type as the old one, so "0.5"
-//     cannot replace 0.5.
-//
-// Setting an optional field the base scenario omits requires an inline spec.
 func Override(spec map[string]any, pointer string, value any) error {
 	p, err := ParsePointer(pointer)
 	if err != nil {
@@ -99,17 +88,14 @@ func DeepCopy(v any) any {
 	}
 }
 
-// Canonical returns the canonical JSON encoding of v: encoding/json sorts
-// map keys and formats each float64 in its shortest round-trip form, so two
-// semantically equal documents (1.0 vs 1, different key order, different
-// whitespace) encode to the same bytes.
+// Canonical returns the canonical JSON encoding of v: encoding/json sorts map keys and formats
+// each float64 in its shortest round-trip form, so two semantically equal documents (1.0 vs 1,
+// different key order, different whitespace) encode to the same bytes.
 func Canonical(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-// RunParams are the run settings that change results, and therefore
-// belong in the cache key. Threads are deliberately absent: the solver is
-// bit-identical across thread counts (ADR-0002).
+// RunParams are the run settings that change results, and therefore belong in the cache key.
 type RunParams struct {
 	Quality      string   `json:"quality"`
 	SimTime      *float64 `json:"sim_time"`

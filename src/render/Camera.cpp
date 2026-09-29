@@ -35,10 +35,9 @@ glm::vec3 OrbitCamera::position() const {
 
 void OrbitCamera::orbit(float deltaYawDeg, float deltaPitchDeg) {
     yawDeg_ += deltaYawDeg;
-    // Clamped, not wrapped: past +-89 degrees the eye position and the
-    // "up" vector used by glm::lookAt become nearly parallel, which is
-    // the classic gimbal-lock-adjacent glitch (the view snaps/flips
-    // instead of continuing to orbit smoothly).
+    // Clamped, not wrapped: past +-89 degrees the eye position and the "up" vector used by
+    // glm::lookAt become nearly parallel, which is the classic gimbal-lock-adjacent glitch (the
+    // view snaps/flips instead of continuing to orbit smoothly).
     pitchDeg_ = std::clamp(pitchDeg_ + deltaPitchDeg, kMinPitchDeg, kMaxPitchDeg);
 }
 

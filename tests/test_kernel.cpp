@@ -5,9 +5,8 @@
 using namespace aquasph;
 
 TEST(SPHKernel, NormalizationIntegratesToOne) {
-    // Numerically integrate 4*pi*r^2*W(r) dr over [0, h] with a fine
-    // midpoint Riemann sum and check it converges to 1. This is the test
-    // that validates the corrected 3D sigma constant (see SPHKernel.hpp).
+    // Numerically integrate 4*pi*r^2*W(r) dr over [0, h] with a fine midpoint Riemann sum and
+    // check it converges to 1.
     const float h = 0.1f;
     CubicSplineKernel kernel(h);
 

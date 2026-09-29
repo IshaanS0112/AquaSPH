@@ -1,12 +1,5 @@
-// Package e2e runs the real system: aquasph-api and several
-// aquasph-worker processes (built from this module), the real C++ solver,
-// Postgres and Redis. It is the automated form of the checks in
-// docs/platform/verification.md, including failure injection: workers are
-// SIGKILLed and SIGTERMed mid-job and the platform must recover.
-//
-// Needs the solver built at ../../build/aquasph (or AQUASPH_E2E_SOLVER).
-// Skipped with -short or when the solver is missing, unless
-// AQUASPH_REQUIRE_SOLVER=1, as in CI.
+// Package e2e runs the real system: aquasph-api and several aquasph-worker processes (built
+// from this module), the real C++ solver, Postgres and Redis.
 package e2e
 
 import (

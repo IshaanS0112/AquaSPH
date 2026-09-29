@@ -13,9 +13,8 @@
 
 namespace aquasph {
 
-// Per-step diagnostics. Everything a scenario reports, and everything CI
-// asserts on, is derived from these -- which is what makes the scenarios
-// experiments rather than animations.
+// Per-step diagnostics. Everything a scenario reports, and everything CI asserts on, is derived
+// from these.
 struct StepStats {
     int step = 0;
     float time = 0.0f;
@@ -28,9 +27,7 @@ struct StepStats {
     float densityMin = 0.0f;
     float densityAvg = 0.0f;
     float densityMax = 0.0f;
-    // Fraction of fluid particles within 1% of their material's rest
-    // density -- the single most informative number about whether the
-    // weakly-compressible assumption is actually holding.
+    // Fraction of fluid particles within 1% of their material's rest density.
     float fractionNearRest = 0.0f;
     int fluidCount = 0;
     int boundaryCount = 0;
@@ -40,16 +37,7 @@ struct StepStats {
     double fluidVolume = 0.0;   // m^3, sum of m_i / rho_i
 };
 
-// Accumulated wall time per pipeline stage, in milliseconds, for the whole
-// run. Off by default: the timers around each stage are cheap but they do
-// force the OpenMP regions apart, and a benchmark should measure the
-// solver rather than the instrumentation.
-//
-// The point of measuring per stage rather than per step is Amdahl's law.
-// docs/architecture.md predicted, before any of this was threaded, that
-// LinkedCell::build would become a growing share of the total as the
-// parallel loops sped up. This is how that prediction gets checked with
-// numbers instead of argued about.
+// Accumulated wall time per pipeline stage, in milliseconds, for the whole run.
 struct StageProfile {
     double gridBuild = 0.0;
     double boundaryVolumes = 0.0;
@@ -68,29 +56,10 @@ struct StageProfile {
     }
 };
 
-// Owns the particle array and every scenario primitive, and runs the step
-// pipeline. The solver modules under core/ know nothing about scenarios;
-// this class is where a Scenario becomes a running simulation.
-//
-// PARTICLE ARRAY LAYOUT, and why it matters for determinism:
-//
-//   [0, boundaryCount)            boundary particles, never removed,
-//                                 index-stable for the whole run
-//   [boundaryCount, size())       fluid particles, appended by emitters,
-//                                 compacted in place by sinks
-//
-// Boundary particles come first so that obstacle motion can address them
-// by a fixed index even as the fluid population changes underneath.
-// Emitted particles are appended in (emitter index, lattice site index)
-// order and sink removal is a stable compaction, so the array contents
-// are a pure function of the scenario and the step count -- never of the
-// thread count or of allocator behaviour. See docs/architecture.md,
-// "Dynamic particle counts".
+// Owns the particle array and every scenario primitive, and runs the step pipeline.
 class Simulation {
 public:
-    // `maxParticles` is a hard ceiling; emission stops (with one warning)
-    // rather than growing without bound, so a mis-specified emitter cannot
-    // exhaust memory on a CI runner.
+    // `maxParticles` is a hard ceiling.
     explicit Simulation(const Scenario& scenario, size_t maxParticles = 4000000);
 
     // Advances one adaptive timestep. Returns the stats for that step.
@@ -108,10 +77,8 @@ public:
     float smoothingRadius() const { return h_; }
     size_t boundaryCount() const { return boundaryCount_; }
 
-    // Boundary particles are laid out as [0, wallCount) domain walls then
-    // [wallCount, boundaryCount) obstacle shells. The renderer draws only
-    // the second range: drawing the walls would wrap the scene in an
-    // opaque box and hide the fluid entirely.
+    // Boundary particles are laid out as [0, wallCount) domain walls then [wallCount,
+    // boundaryCount) obstacle shells.
     size_t wallCount() const { return wallCount_; }
     size_t capacity() const { return maxParticles_; }
     bool hitParticleCeiling() const { return hitCeiling_; }
@@ -122,10 +89,8 @@ public:
     void enableProfiling(bool on) { profiling_ = on; }
     const StageProfile& profile() const { return profile_; }
 
-    // Number of particles counted as unstable: non-finite coordinates, or
-    // outside the domain by more than a tolerance on a face that is not
-    // Open. Open faces legitimately lose particles, so counting them as
-    // instability would mark every flood scenario UNSTABLE.
+    // Number of particles counted as unstable: non-finite coordinates, or outside the domain by
+    // more than a tolerance on a face that is not Open.
     int unstableCount() const;
 
 private:
@@ -140,9 +105,7 @@ private:
     float prevDt_ = 0.0f;
     bool hitCeiling_ = false;
     bool anyMovingObstacle_ = false;
-    // Obstacle offsets as of the last boundary-volume rebuild. See the
-    // note at the recompute site in step() for why the rebuild is driven
-    // by displacement rather than run every step.
+    // Obstacle offsets as of the last boundary-volume rebuild.
     std::vector<glm::vec3> lastRebuildOffset_;
     bool needsCompaction_ = false;
     glm::vec3 bodyAcceleration_{0.0f};

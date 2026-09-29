@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Runs every scenario in configs/scenarios and reports STABLE/UNSTABLE plus
-# the key metrics, writing one JSON file per scenario.
-#
+# Runs every scenario in configs/scenarios and reports STABLE/UNSTABLE plus the key metrics,
+# writing one JSON file per scenario.
 # Usage: scripts/run_scenarios.sh [quality] [outdir] [extra aquasph args...]
 set -u
 

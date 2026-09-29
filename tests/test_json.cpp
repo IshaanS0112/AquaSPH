@@ -1,6 +1,5 @@
-// The JSON helpers are shared by metrics.json and the --progress-json
-// stream, both of which are parsed by the platform worker. Invalid JSON
-// there is a failed job, so the edge cases are pinned here.
+// The JSON helpers are shared by metrics.json and the --progress-json stream, both of which are
+// parsed by the platform worker.
 #include <gtest/gtest.h>
 #include <cmath>
 #include <limits>

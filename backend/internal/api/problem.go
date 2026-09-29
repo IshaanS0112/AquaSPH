@@ -51,8 +51,6 @@ func writeProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 func problemType(slug string) string { return "/problems/" + slug }
 
 // writeError maps a domain or service error to a problem response.
-// Anything unrecognised is a 500 whose detail does not leak internals;
-// the full error goes to the log under the same request ID.
 func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var v *service.ValidationError
 	var q *domain.QuotaError
@@ -82,9 +80,8 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-// decodeJSON reads a JSON body strictly: size-limited, unknown fields
-// rejected (so "sim_tme" is an error, not a silently ignored typo), and
-// exactly one JSON value.
+// decodeJSON reads a JSON body strictly: size-limited, unknown fields rejected (so "sim_tme" is
+// an error, not a silently ignored typo), and exactly one JSON value.
 func (s *Server) decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
 		writeProblem(w, r, Problem{Type: problemType("unsupported-media-type"), Status: http.StatusUnsupportedMediaType,

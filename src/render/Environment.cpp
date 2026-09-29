@@ -23,9 +23,7 @@ void main() {
 }
 )GLSL";
 
-// Background: a gentle vertical gradient plus a light vignette. Both are
-// held deliberately subtle -- they exist to seat the subject in a space,
-// not to be noticed.
+// Background: a gentle vertical gradient plus a light vignette.
 const char* kBackgroundFS = R"GLSL(
 #version 330 core
 in vec2 vUV;
@@ -69,9 +67,9 @@ uniform float uShadowStrength;
 
 out vec4 FragColor;
 
-// Analytically antialiased grid: line width is derived from the screen
-// -space derivative of the world position, so lines stay one pixel wide
-// at every distance instead of aliasing into noise near the horizon.
+// Analytically antialiased grid: line width is derived from the screen -space derivative of the
+// world position, so lines stay one pixel wide at every distance instead of aliasing into noise
+// near the horizon.
 float gridLine(vec2 p, float spacing, float width) {
     vec2 g = abs(fract(p / spacing - 0.5) - 0.5) * spacing;
     vec2 fw = fwidth(p) * width;
@@ -88,9 +86,7 @@ void main() {
     color = mix(color, uGridColor, minor * 0.35);
     color = mix(color, uGridColor, major * 0.55);
 
-    // Soft contact shadow from the top-down fluid thickness map. This is
-    // what makes the fluid look like it is ON the floor rather than
-    // floating in front of it.
+    // Soft contact shadow from the top-down fluid thickness map.
     if (uHasShadow > 0.5) {
         vec2 uv = (p - uDomainMin.xz) / max(uDomainMax.xz - uDomainMin.xz, vec2(1e-4));
         if (all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)))) {
@@ -123,11 +119,7 @@ out vec4 FragColor;
 void main() { FragColor = uColor; }
 )GLSL";
 
-// Obstacles: the same sphere-impostor trick as the fluid depth pass, but
-// shaded opaquely. Drawing the obstacle's own boundary particles means
-// what is on screen is exactly the solid the solver sees -- an obstacle
-// that leaks in the simulation looks wrong here too, rather than being
-// covered up by an idealised mesh.
+// Obstacles: the same sphere-impostor trick as the fluid depth pass, but shaded opaquely.
 const char* kObstacleVS = R"GLSL(
 #version 330 core
 layout(location = 0) in vec3 aPos;
@@ -225,9 +217,8 @@ Environment::Environment() {
 
 void Environment::updateObstacles(const std::vector<Particle>& particles,
                                    size_t wallCount, size_t boundaryCount) {
-    // Only obstacle boundary particles, never the tank walls: drawing the
-    // walls would wrap the scene in an opaque box and hide the fluid
-    // entirely.
+    // Only obstacle boundary particles, never the tank walls: drawing the walls would wrap the
+    // scene in an opaque box and hide the fluid entirely.
     obstacleCount_ = boundaryCount > wallCount ? boundaryCount - wallCount : 0;
     if (obstacleCount_ == 0) return;
 
@@ -321,9 +312,9 @@ void Environment::drawBackground(const Scenario&) {
     glDepthMask(GL_FALSE_V);
     glDisable(GL_BLEND);
     backgroundShader_->use();
-    // One restrained palette across every scenario: a neutral dark
-    // environment, so the fluid's desaturated cyan reads the same way in
-    // a contact sheet regardless of which scenario a frame came from.
+    // One restrained palette across every scenario: a neutral dark environment, so the fluid's
+    // desaturated cyan reads the same way in a contact sheet regardless of which scenario a
+    // frame came from.
     backgroundShader_->setVec3("uTop", 0.075f, 0.086f, 0.102f);
     backgroundShader_->setVec3("uBottom", 0.028f, 0.032f, 0.040f);
     quad_.draw();
@@ -362,10 +353,8 @@ void Environment::drawFloor(const Scenario& scenario, const glm::mat4& view, con
     floorShader_->setVec3("uCameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
     floorShader_->setVec3("uBase", 0.115f, 0.125f, 0.140f);
     floorShader_->setVec3("uGridColor", 0.30f, 0.36f, 0.40f);
-    // Grid spacing chosen so the domain is a handful of major squares
-    // across, then rounded to a readable number -- the grid is there to
-    // convey scale, so its pitch has to be a quantity, not an arbitrary
-    // fraction of the frame.
+    // Grid spacing chosen so the domain is a handful of major squares across, then rounded to a
+    // readable number.
     const float raw = std::max(std::max(span.x, span.z) / 10.0f, 1.0e-3f);
     const float mag = std::pow(10.0f, std::floor(std::log10(raw)));
     const float nice = mag * (raw / mag < 2.0f ? 1.0f : (raw / mag < 5.0f ? 2.0f : 5.0f));

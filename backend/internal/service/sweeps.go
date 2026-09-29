@@ -29,9 +29,8 @@ type child struct {
 	overrides []byte
 }
 
-// SubmitSweep validates a sweep, expands its grid and creates the sweep
-// and all of its child jobs in one transaction: a sweep is never visible
-// half-created.
+// SubmitSweep validates a sweep, expands its grid and creates the sweep and all of its child
+// jobs in one transaction: a sweep is never visible half-created.
 func (s *Service) SubmitSweep(ctx context.Context, tenant *domain.Tenant, req SweepRequest, idemKey string) (sw *domain.Sweep, replayed bool, err error) {
 	if req.Priority == nil {
 		p := DefaultSweepPriority
@@ -187,9 +186,7 @@ type SweepResults struct {
 	Rows    []SweepResultRow `json:"rows"`
 }
 
-// Results extracts the requested metric pointers from every child's
-// stored result. A metric missing from a result (unfinished job, or a
-// pointer that does not exist in this scenario's metrics) is null.
+// Results extracts the requested metric pointers from every child's stored result.
 func (s *Service) Results(ctx context.Context, tenantID, sweepID uuid.UUID, metrics []string) (*SweepResults, error) {
 	if len(metrics) == 0 {
 		metrics = DefaultSweepMetrics

@@ -62,9 +62,9 @@ TEST(Integrator, WallReflectionKeepsParticleInBounds) {
 }
 
 TEST(Integrator, EnergyDoesNotBlowUpUnderRepeatedSteps) {
-    // Rough sanity check, not precise conservation: a particle bouncing
-    // in a damped box (damping < 1) should never gain energy above its
-    // starting potential energy, since every wall hit removes energy.
+    // Rough sanity check, not precise conservation: a particle bouncing in a damped box
+    // (damping < 1) should never gain energy above its starting potential energy, since every
+    // wall hit removes energy.
     const BoundaryBox bounds{glm::vec3(-1.0f), glm::vec3(1.0f), 0.5f};
     PredictorCorrectorIntegrator integrator(bounds);
 

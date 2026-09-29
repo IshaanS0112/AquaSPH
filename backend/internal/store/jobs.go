@@ -12,9 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// NewJob is everything needed to insert a job. A job inserted with
-// CacheSource set is created already completed (a cache hit); otherwise it
-// is queued.
+// NewJob is everything needed to insert a job.
 type NewJob struct {
 	ID             uuid.UUID
 	TenantID       uuid.UUID
@@ -81,10 +79,7 @@ func InsertJob(ctx context.Context, q Querier, n *NewJob) (*domain.Job, error) {
 		rawOr(n.Labels, "{}"), n.SpecHash, n.AllowCache))
 }
 
-// LockTenantQuota serialises quota checks for one tenant until the
-// transaction ends. It is an advisory lock rather than a lock on the
-// tenant row, so submissions never contend with worker claims (which do
-// lock the tenant row).
+// LockTenantQuota serialises quota checks for one tenant until the transaction ends.
 func LockTenantQuota(ctx context.Context, q Querier, tenantID uuid.UUID) error {
 	_, err := q.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('quota:' || $1::text, 0))`, tenantID)
 	return err
@@ -167,10 +162,7 @@ type JobFilter struct {
 	Labels   map[string]string
 }
 
-// Cursor is an opaque keyset-pagination token. It encodes the last ID of
-// the previous page; because IDs are UUIDv7, "id < cursor" is "created
-// before", and a page boundary cannot skip or repeat rows when new jobs
-// are inserted concurrently, which OFFSET pagination would.
+// Cursor is an opaque keyset-pagination token.
 type Cursor = string
 
 func EncodeCursor(id uuid.UUID) Cursor { return base64.RawURLEncoding.EncodeToString(id[:]) }
@@ -234,11 +226,8 @@ func (s *Store) ListJobs(ctx context.Context, tenantID uuid.UUID, f JobFilter, a
 	return out, next, nil
 }
 
-// CancelJob cancels a queued job immediately, or flags a running one for
-// its worker, in one statement. A worker's claim holds the row lock, so a
-// cancel racing a claim waits, then re-evaluates the CASE against the
-// committed state: it can never cancel a job "as queued" that a worker
-// has just started.
+// CancelJob cancels a queued job immediately, or flags a running one for its worker, in one
+// statement. A cancel racing a claim waits for the row lock, so it sees the claim.
 func (s *Store) CancelJob(ctx context.Context, tenantID, id uuid.UUID) (*domain.Job, error) {
 	j, err := ScanJob(s.pool.QueryRow(ctx, `
 		UPDATE jobs SET

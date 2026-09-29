@@ -1,16 +1,4 @@
 // AquaSPH -- scenario viewer and offline frame recorder.
-//
-// A separate executable from `aquasph` (main.cpp) on purpose: the
-// headless solver and the whole test suite have no reason to link
-// GLFW/OpenGL, and this file has no reason to carry the metrics
-// reporting. What is NOT separate is the physics -- both binaries drive
-// the same scene::Simulation over the same scenario file, so what is on
-// screen is provably the simulation that was benchmarked and validated,
-// not a parallel implementation that could drift.
-//
-// Requires a real display and OpenGL 3.3+ drivers; see
-// docs/rendering.md for per-platform prerequisites and for what
-// --record-headless does and does not remove.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -58,10 +46,8 @@ void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     if (input->dragging) {
         const float dx = static_cast<float>(xpos - input->lastX);
         const float dy = static_cast<float>(ypos - input->lastY);
-        // Sign convention: dragging right moves the view "the same way
-        // a trackball would" (orbit follows the cursor), dragging up
-        // looks up from below rather than tipping over -- hence the
-        // negated dy.
+        // Sign convention: dragging right moves the view "the same way a trackball would"
+        // (orbit follows the cursor), dragging up looks up from below rather than tipping over.
         input->camera->orbit(dx * 0.3f, -dy * 0.3f);
     }
     input->lastX = xpos;
@@ -83,10 +69,9 @@ void keyCallback(GLFWwindow* window, int key, int /*scancode*/, int action, int 
     auto* input = static_cast<InputState*>(glfwGetWindowUserPointer(window));
     if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
     if (key == GLFW_KEY_SPACE) input->paused = !input->paused;
-    // Points mode stays available at a keypress, not as a legacy path:
-    // it is how you see the actual particle distribution when the
-    // surface looks wrong, and showing both is what demonstrates what
-    // the screen-space reconstruction is buying.
+    // Points mode stays available at a keypress, not as a legacy path: it is how you see the
+    // actual particle distribution when the surface looks wrong, and showing both is what
+    // demonstrates what the screen-space reconstruction is buying.
     if (key == GLFW_KEY_M) input->surfaceMode = !input->surfaceMode;
 }
 
@@ -133,9 +118,7 @@ CliArgs parseArgs(int argc, char** argv) {
             }
             return argv[++i];
         };
-        // std::stoi/stof throw on anything unparseable; an uncaught
-        // exception out of argument parsing means `terminate called after
-        // throwing` in response to a typo.
+        // std::stoi/stof throw on anything unparseable.
         auto asInt = [&](const char* what) -> int {
             const std::string v = next(what);
             try { return std::stoi(v); }
@@ -188,9 +171,7 @@ CliArgs parseArgs(int argc, char** argv) {
     return a;
 }
 
-// The final blit: draw the finished offscreen image over the default
-// framebuffer. Kept here rather than in a render/ class because it is
-// four lines of shader and belongs to presentation, not to the renderer.
+// The final blit: draw the finished offscreen image over the default framebuffer.
 const char* kPresentVS = R"GLSL(
 #version 330 core
 out vec2 vUV;
@@ -249,9 +230,8 @@ int main(int argc, char** argv) {
     if (!glfwInit()) {
         const char* desc = nullptr;
         glfwGetError(&desc);
-        // GLFW does not silently fall back to a non-rendering backend, by
-        // design, so a headless machine fails here rather than at
-        // glfwCreateWindow() with a more confusing error.
+        // GLFW does not silently fall back to a non-rendering backend, by design, so a headless
+        // machine fails here rather than at glfwCreateWindow() with a more confusing error.
         std::cerr << "glfwInit() failed: " << (desc ? desc : "unknown error") << "\n"
                   << kDisplayHelp;
         return 1;
@@ -264,14 +244,7 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #endif
     if (args.headlessRecord) {
-        // HONEST ABOUT WHAT THIS DOES. GLFW cannot create an OpenGL
-        // context without a window, so --record-headless creates a hidden
-        // one and renders into an FBO: no window ever appears, nothing is
-        // ever swapped to a front buffer, and the frame size is
-        // independent of any screen. What it does NOT remove is the need
-        // for a display connection -- on a machine with no X server, run
-        // it under xvfb-run. Calling this "no window" would be accurate;
-        // calling it "no display required" would not be.
+        // GLFW needs a window for a GL context, so headless mode uses a hidden one and renders to an FBO.
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     }
 
@@ -359,21 +332,13 @@ int main(int argc, char** argv) {
     if (!args.recordDir.empty()) capture = std::make_unique<FrameCapture>(args.recordDir);
 
     // Particle draw radius, in units of the particle spacing.
-    //
-    // MEASURED, not guessed. At 0.62 the spheres overlap along the lattice
-    // axes but NOT along its diagonals (neighbours there are sqrt(3) times
-    // further apart), so the depth image came out peppered with holes that
-    // fell through to the background and rendered as black speckle across
-    // the whole surface. 0.9 covers the 3D diagonal and closes them. Much
-    // larger than that and the fluid visibly inflates past its own volume.
     FluidRenderer::Params fp;
     fp.particleRadius = sim.spacing() * 0.9f;
     fp.smoothIterations = qualitySmoothIterations(args.quality);
     fp.blurRadiusPixels = 6.0f;
-    // The bilateral filter's depth-difference weight is in inverse metres,
-    // so it has to scale with the scenario: a falloff tuned for a 2 m tank
-    // would treat every depth step in a 9 cm droplet scene as continuous
-    // and smooth the crown flat.
+    // The bilateral filter's depth-difference weight is in inverse metres, so it has to scale
+    // with the scenario: a falloff tuned for a 2 m tank would treat every depth step in a 9 cm
+    // droplet scene as continuous and smooth the crown flat.
     fp.depthFalloff = 1.0f / std::max(sim.spacing() * 3.0f, 1.0e-4f);
     fp.refractionStrength = 0.045f;
     if (!sim.scenario().materials.empty()) {
@@ -401,12 +366,9 @@ int main(int argc, char** argv) {
 
         if (!input.paused && !sim.finished()) {
             if (capture) {
-                // RECORDING RUNS ON SIMULATED TIME, NOT WALL TIME. Frames
-                // are emitted at the scenario's output cadence, so a clip
-                // plays back at a defined rate regardless of how long each
-                // step took to compute -- which is the difference between
-                // a reproducible recording and one whose speed depends on
-                // the machine that made it.
+                // RECORDING RUNS ON SIMULATED TIME, NOT WALL TIME. Frames are emitted at the
+                // scenario's output cadence, so a clip plays back at a defined rate regardless
+                // of how long each step took to compute.
                 while (!sim.finished() && sim.time() < nextFrameTime) {
                     sim.step();
                     ++stepsSinceReport;
@@ -463,9 +425,8 @@ int main(int argc, char** argv) {
             capture->write(outputTarget->readRGB(), fbWidth, fbHeight);
         }
 
-        // Blit the finished frame to the default framebuffer by drawing it
-        // as a textured full-screen pass. Skipped entirely in headless
-        // recording -- there is nothing to present to.
+        // Blit the finished frame to the default framebuffer by drawing it as a textured
+        // full-screen pass.
         if (!args.headlessRecord) {
             OffscreenTarget::bindDefault(fbWidth, fbHeight);
             gl::glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -513,15 +474,7 @@ int main(int argc, char** argv) {
         std::cout << "Assemble with:   scripts/make_video.sh " << capture->directory() << "\n";
     }
 
-    // TEARDOWN ORDER IS LOAD-BEARING. Every one of these owns GL objects
-    // (textures, framebuffers, buffers, programs) and frees them in its
-    // destructor. glfwTerminate() destroys the context and unloads the
-    // driver, so a destructor that runs after it calls through a function
-    // pointer into unmapped memory -- which is exactly what happened:
-    // every run segfaulted on exit, after the summary had already printed,
-    // so it looked like a clean run with a stray crash rather than a
-    // lifetime bug. Releasing them explicitly, while the context is still
-    // current, is the fix; leaving them to end-of-main destruction is not.
+    // Teardown order matters: these own GL objects and must be destroyed before glfwTerminate().
     capture.reset();
     present.reset();
     presentTri.reset();

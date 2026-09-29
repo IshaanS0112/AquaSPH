@@ -1,16 +1,4 @@
-// Package testutil provides real Postgres and Redis instances to
-// integration tests.
-//
-// Every test gets its own freshly migrated database, so tests are
-// isolated and can run in parallel. Mocks are deliberately absent: the
-// queue's correctness lives in SQL locking behaviour (SKIP LOCKED, row
-// locks, READ COMMITTED re-checks) that a mock cannot reproduce.
-//
-// Configuration:
-//
-//	AQUASPH_TEST_DATABASE_URL   admin URL of a Postgres server (default postgres://postgres@127.0.0.1:5432/postgres)
-//	AQUASPH_TEST_REDIS_URL      Redis URL (default redis://127.0.0.1:6379/0)
-//	AQUASPH_REQUIRE_INTEGRATION set to 1 (as CI does) to turn "server unreachable" into a failure, not a skip
+// Package testutil provides real Postgres and Redis instances to integration tests.
 package testutil
 
 import (

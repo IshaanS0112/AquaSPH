@@ -1,7 +1,4 @@
-// Boundary particles (Akinci et al. 2012) replaced v1's clamp-and-damp
-// wall. The property that matters is not "the code runs" but "fluid does
-// not pass through a wall, and the wall's strength does not depend on how
-// finely it happens to be sampled".
+// Boundary particles (Akinci et al. 2012) replaced v1's clamp-and-damp wall.
 #include <gtest/gtest.h>
 #include <cmath>
 #include "core/Particle.hpp"
@@ -30,9 +27,8 @@ MaterialTable water(float viscosity = 2.0f) {
     return MaterialTable{m};
 }
 
-// Total boundary contribution rho_b = sum_b Psi_b * W(r) seen by a probe
-// particle sitting one `probeGap` above an infinite flat wall sampled at
-// `spacing` with `layers` layers.
+// Total boundary contribution rho_b = sum_b Psi_b * W(r) seen by a probe particle sitting one
+// `probeGap` above an infinite flat wall sampled at `spacing` with `layers` layers.
 float wallDensityContribution(float h, float spacing, int layers, float probeGap) {
     CubicSplineKernel kernel(h);
     std::vector<Particle> ps;
@@ -71,10 +67,8 @@ float wallDensityContribution(float h, float spacing, int layers, float probeGap
 
 } // namespace
 
-// The continuum value the discrete boundary sum is trying to reproduce:
-// rho0 times the fraction of the kernel's mass that lies below a plane a
-// distance `gap` beneath the probe. Computed here by direct quadrature so
-// the test carries its own reference rather than a magic number.
+// The continuum value the discrete boundary sum is trying to reproduce: rho0 times the fraction
+// of the kernel's mass that lies below a plane a distance `gap` beneath the probe.
 static float halfSpaceLimit(float h, float gap) {
     CubicSplineKernel kernel(h);
     const int n = 160;
@@ -94,14 +88,9 @@ static float halfSpaceLimit(float h, float gap) {
     return 1000.0f * static_cast<float>(sum);
 }
 
-// WHAT THE AKINCI VOLUME ACTUALLY BUYS, AND WHAT IT DOES NOT.
-//
-// V_b = 1 / sum_k W(r_bk) is a volume: it must scale with the sampling
-// cell s^3, so that Psi_b = rho0 * V_b behaves like a mass no matter how
-// the wall was sampled. That is what this test pins down. A boundary
-// particle on the outer face of the wall sees roughly half a
-// neighbourhood, so its volume lands near 2 s^3 rather than s^3 -- which
-// is the whole point, since it has to stand in for the missing half.
+// WHAT THE AKINCI VOLUME ACTUALLY BUYS, AND WHAT IT DOES NOT. V_b = 1 / sum_k W(r_bk) is a
+// volume: it must scale with the sampling cell s^3, so that Psi_b = rho0 * V_b behaves like a
+// mass no matter how the wall was sampled.
 TEST(BoundaryParticles, VolumeScalesWithTheSamplingCell) {
     const float h = 0.1f;
     for (float spacing : {0.05f, 0.025f, 0.0125f}) {
@@ -138,18 +127,9 @@ TEST(BoundaryParticles, VolumeScalesWithTheSamplingCell) {
     }
 }
 
-// WHAT THE WEIGHTING DOES NOT FIX, MEASURED RATHER THAN ASSUMED.
-//
-// Sampling independence only arrives once enough boundary layers fall
-// inside the kernel support, and that count is about h/spacing - 1. At
-// this project's h/spacing = 2 a fluid particle resting on a wall sees
-// exactly ONE layer, and the boundary sum recovers well under half of the
-// half-space limit. It converges from below as the wall is sampled more
-// finely. Both halves of that are asserted here, because the shortfall at
-// the operating ratio is a real property of the discretisation that the
-// documentation states plainly (docs/architecture.md, "How well the
-// boundary is resolved") rather than a bug to be hidden behind a loose
-// tolerance.
+// WHAT THE WEIGHTING DOES NOT FIX, MEASURED RATHER THAN ASSUMED. Sampling independence only
+// arrives once enough boundary layers fall inside the kernel support, and that count is about
+// h/spacing - 1.
 TEST(BoundaryParticles, ContributionConvergesTowardTheHalfSpaceLimitFromBelow) {
     const float h = 0.1f;
     const float gap = 0.01f;
@@ -197,12 +177,9 @@ TEST(BoundaryParticles, RepelFluidThatApproachesThem) {
     Particle f;
     f.position = glm::vec3(0.0f, 0.005f, 0.0f);   // pressed hard against the wall
     f.mass = 1000.0f * spacing * spacing * spacing;
-    // Density and pressure are IMPOSED rather than computed here: a single
-    // fluid particle over a wall has no fluid above it, so its computed
-    // density is necessarily below rest and its pressure would clamp to
-    // zero. What is under test is the direction of the boundary pressure
-    // force for a compressed particle, so the compression is prescribed
-    // and the rest of the pipeline is bypassed.
+    // Density and pressure are IMPOSED rather than computed here: a single fluid particle over
+    // a wall has no fluid above it, so its computed density is necessarily below rest and its
+    // pressure would clamp to zero.
     f.density = 1080.0f;
     f.pressure = mats[0].eos().pressure(1080.0f);
     ps.push_back(f);
@@ -225,9 +202,8 @@ TEST(BoundaryParticles, RepelFluidThatApproachesThem) {
     EXPECT_NEAR(ps.back().force.z, 0.0f, std::abs(ps.back().force.y) * 1e-3f);
 }
 
-// THE LEAKAGE TEST THE BOUNDARY WORK EXISTS TO PASS. A column of water is
-// dropped onto a solid floor and run well past impact; no particle may
-// end up on the far side of the boundary.
+// THE LEAKAGE TEST THE BOUNDARY WORK EXISTS TO PASS. A column of water is dropped onto a solid
+// floor and run well past impact.
 TEST(BoundaryParticles, FluidDoesNotLeakThroughTheFloorUnderImpact) {
     Scenario s;
     s.name = "leak_test";
@@ -283,10 +259,9 @@ TEST(BoundaryParticles, FluidDoesNotLeakThroughTheFloorUnderImpact) {
 }
 
 TEST(BoundaryParticles, StillWaterStaysStillAndNearRestDensity) {
-    // Hydrostatic equilibrium is the cheapest complete statement that the
-    // boundary coupling, the pressure law and the timestep controller all
-    // agree: still water must stay still, at rest density, without
-    // relying on containment.
+    // Hydrostatic equilibrium is the cheapest complete statement that the boundary coupling,
+    // the pressure law and the timestep controller all agree: still water must stay still, at
+    // rest density, without relying on containment.
     Scenario s;
     s.name = "hydrostatic";
     s.domain.min = glm::vec3(0.0f);

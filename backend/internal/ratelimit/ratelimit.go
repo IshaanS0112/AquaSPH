@@ -1,14 +1,5 @@
-// Package ratelimit implements per-tenant request rate limiting with the
-// Generic Cell Rate Algorithm (GCRA) in a Redis Lua script.
-//
-// Why GCRA over a token bucket or a fixed window: it stores one integer
-// per key (the "theoretical arrival time"), has no window-boundary burst
-// (a fixed window allows 2x the limit across a boundary), and the whole
-// check-and-update runs inside Redis as one atomic script, so any number
-// of API replicas share one limit without coordination.
-//
-// The clock is Redis's (TIME), not the API's, so clock skew between
-// replicas cannot loosen or tighten the limit.
+// Package ratelimit implements per-tenant request rate limiting with the Generic Cell Rate
+// Algorithm (GCRA) in a Redis Lua script.
 package ratelimit
 
 import (
@@ -31,9 +22,8 @@ type Limiter interface {
 	Allow(ctx context.Context, key string, perMinute, burst int) (Decision, error)
 }
 
-// ARGV[1] = emission interval in microseconds (time per request at the
-// sustained rate); ARGV[2] = burst. Returns {allowed, remaining,
-// retry_after_us, reset_after_us}.
+// ARGV[1] = emission interval in microseconds (time per request at the sustained rate); ARGV[2]
+// = burst.
 var gcra = redis.NewScript(`
 local emission = tonumber(ARGV[1])
 local burst = tonumber(ARGV[2])

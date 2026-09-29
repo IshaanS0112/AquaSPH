@@ -7,10 +7,8 @@
 
 namespace aquasph {
 
-// Minimal wall-clock timing utility: start/stop a named label repeatedly
-// (once per simulation step) and query rolling average / last / count.
-// Header-only since it's small and used from both main.cpp and (later)
-// any benchmark driver code.
+// Minimal wall-clock timing utility: start/stop a named label repeatedly (once per simulation
+// step) and query rolling average / last / count.
 class PerfTimer {
 public:
     void start(const std::string& label) {

@@ -5,19 +5,14 @@
 
 namespace aquasph {
 
-// JSON helpers shared by metrics.json and the CLI's --progress-json
-// stream, so both escape strings and render non-finite numbers the same
-// way. jsonNumber returns "null" for NaN/Inf, which JSON cannot express.
+// JSON helpers shared by metrics.json and the CLI's --progress-json stream, so both escape
+// strings and render non-finite numbers the same way. jsonNumber returns "null" for NaN/Inf,
+// which JSON cannot express.
 std::string jsonEscape(const std::string& s);
 std::string jsonNumber(double v);
 
-// Machine-readable measurement, which is what separates a scenario that
-// is an EXPERIMENT from one that is an animation. Every scenario emits
-// these; CI asserts on them; docs/validation.md compares them against
-// experiment and analytical results.
-//
-// Nothing here feeds back into the simulation. Measurement is strictly
-// downstream of physics.
+// Machine-readable measurement, which is what separates a scenario that is an EXPERIMENT from
+// one that is an animation.
 
 struct ProbeSeries {
     std::string name;
@@ -53,24 +48,7 @@ struct WavePrediction {
     bool linearTheoryValid = false;   // steepness comfortably below 1/20
 };
 
-// Fluid centre-of-mass track.
-//
-// WHY THIS EXISTS ALONGSIDE THE SURFACE PROBES. A probe measures the
-// topmost particle in a column, so its resolution floor is one particle
-// spacing. That is fine for a wave three or more spacings tall, and
-// useless below it -- and a standing wave small enough for linear theory
-// to apply is often exactly that small. Measured on the sloshing tank:
-// with the excitation reduced until the wave sat inside linear theory's
-// small-amplitude range, the wave amplitude fell BELOW one spacing and
-// the two end-wall probes returned periods differing by 56%.
-//
-// The centre of mass has no such floor. It is an average over every fluid
-// particle, so its signal-to-noise improves with particle count rather
-// than degrading with wave height, and for a sloshing tank its horizontal
-// component oscillates at exactly the mode being measured. It is the
-// right instrument for this measurement; the probes are the right
-// instrument for a wave flume, where the wave is tall and the question is
-// local.
+// Fluid centre-of-mass track. WHY THIS EXISTS ALONGSIDE THE SURFACE PROBES.
 struct CentroidTrack {
     std::vector<float> time;
     std::vector<float> x, y, z;
@@ -123,9 +101,7 @@ struct MetricsReport {
     long long containmentEvents = 0;
     int unstableParticles = 0;
     bool stable = false;
-    // Set when the run was stopped by SIGTERM/SIGINT before its planned
-    // end. Everything above then describes the run up to that step: a
-    // partial result, still internally consistent, not a failed one.
+    // Set when the run was stopped by SIGTERM/SIGINT before its planned end.
     bool cancelled = false;
 
     const char* statusName() const {
@@ -156,11 +132,7 @@ class MetricsCollector {
 public:
     explicit MetricsCollector(const Scenario& scenario);
 
-    // Called once per output interval, not once per step: a 20,000-step
-    // run does not need 20,000 samples of a wave probe, and sampling on a
-    // fixed simulated-time grid keeps the record comparable across
-    // quality presets, which take different numbers of steps to cover the
-    // same simulated time.
+    // Called once per output interval, so records are comparable across quality presets.
     void sample(const Simulation& sim);
 
     // Accumulates per-step aggregates that a sampled record would miss

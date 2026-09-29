@@ -30,10 +30,9 @@ def main(patterns):
             with open(path) as f:
                 m = json.load(f)
         except Exception as e:
-            # Catches the specific failure mode of writing NaN or Infinity,
-            # which are not valid JSON and would make the file unreadable
-            # by every standard parser exactly when something has gone
-            # wrong and you most need to read it.
+            # Catches the specific failure mode of writing NaN or Infinity, which are not valid
+            # JSON and would make the file unreadable by every standard parser exactly when
+            # something has gone wrong and you most need to read it.
             print(f"{path}: not valid JSON: {e}", file=sys.stderr)
             bad = 1
             continue

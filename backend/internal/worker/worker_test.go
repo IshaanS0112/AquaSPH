@@ -266,9 +266,8 @@ func TestDuplicateQueuedBehindItsTwinIsServedFromCache(t *testing.T) {
 	}
 }
 
-// The zombie scenario end to end: this worker's lease is taken away while
-// its solver is running. It must stop the solver and must not record
-// anything over the new owner's attempt.
+// The zombie scenario end to end: this worker's lease is taken away while its solver is
+// running.
 func TestWorkerThatLosesItsLeaseStopsAndWritesNothing(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, nil)

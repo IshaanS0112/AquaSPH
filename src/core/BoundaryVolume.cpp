@@ -33,10 +33,8 @@ void computeBoundaryVolumes(std::vector<Particle>& particles,
                 kernelSum += kernel.W(r);
             }
 
-            // kernelSum is never zero in practice: the particle's own
-            // self-contribution W(0) is always present because
-            // getNeighbors() includes the query particle. The guard covers
-            // a degenerate kernel only.
+            // kernelSum is never zero in practice: the particle's own self-contribution W(0) is
+            // always present because getNeighbors() includes the query particle.
             pi.volume = kernelSum > 0.0f ? 1.0f / kernelSum : 0.0f;
         }
     }

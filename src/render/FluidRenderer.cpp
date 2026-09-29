@@ -11,9 +11,7 @@ using namespace gl;
 
 namespace {
 
-// Sentinel written where no particle covered a pixel. Any value beyond
-// the far plane works; it must be large enough that the "is this
-// background?" test in every later pass is unambiguous.
+// Sentinel written where no particle covered a pixel.
 constexpr float kBackgroundDepth = 1.0e6f;
 
 // Shared by every full-screen pass. The three clip-space corners are
@@ -28,7 +26,7 @@ void main() {
 }
 )GLSL";
 
-// --- Pass 1: sphere-impostor depth ------------------------------------
+// Pass 1: sphere-impostor depth
 const char* kDepthVS = R"GLSL(
 #version 330 core
 layout(location = 0) in vec3 aPos;
@@ -45,10 +43,8 @@ void main() {
     vec4 viewPos = uView * vec4(aPos, 1.0);
     vViewPos = viewPos.xyz;
     gl_Position = uProj * viewPos;
-    // Perspective-correct sprite size: the projected diameter of a sphere
-    // of radius uRadius at this distance. Clamped because gl_PointSize has
-    // an implementation-defined ceiling and exceeding it silently shrinks
-    // the sprite, which would punch holes in the surface up close.
+    // Perspective-correct sprite size: the projected diameter of a sphere of radius uRadius at
+    // this distance.
     float size = uPointScale * uRadius / max(-viewPos.z, 1e-4);
     gl_PointSize = clamp(size, 1.0, uMaxPointSize);
 }
@@ -64,9 +60,9 @@ uniform float uRadius;
 out float outDepth;
 
 void main() {
-    // Rebuild the sphere from the sprite's local coordinates. gl_PointCoord
-    // has its origin at the TOP left, so y is flipped to match the
-    // bottom-up view space the rest of the pipeline works in.
+    // Rebuild the sphere from the sprite's local coordinates. gl_PointCoord has its origin at
+    // the TOP left, so y is flipped to match the bottom-up view space the rest of the pipeline
+    // works in.
     vec2 c = gl_PointCoord * 2.0 - 1.0;
     c.y = -c.y;
     float r2 = dot(c, c);
@@ -75,9 +71,7 @@ void main() {
     vec3 n = vec3(c, sqrt(1.0 - r2));
     vec3 spherePos = vViewPos + n * uRadius;
 
-    // TRUE sphere-surface depth, not the sprite's flat centre depth. This
-    // is what makes impostors intersect each other and the scene
-    // correctly instead of behaving like cardboard cut-outs.
+    // TRUE sphere-surface depth, not the sprite's flat centre depth.
     vec4 clip = uProj * vec4(spherePos, 1.0);
     gl_FragDepth = (clip.z / clip.w) * 0.5 + 0.5;
 
@@ -85,7 +79,7 @@ void main() {
 }
 )GLSL";
 
-// --- Pass 2: separable bilateral depth smoothing -----------------------
+// Pass 2: separable bilateral depth smoothing
 const char* kBlurFS = R"GLSL(
 #version 330 core
 in vec2 vUV;
@@ -112,17 +106,14 @@ void main() {
     for (int i = -R; i <= R; ++i) {
         float s = texture(uDepth, vUV + uDir * uTexel * float(i)).r;
 
-        // THE HALO FIX, PART ONE: background texels are not smoothed
-        // against at all. Averaging the silhouette with a depth of 1e6
-        // would drag the edge of the fluid a long way back and produce
-        // the bright fringe that gives screen-space fluid away.
+        // THE HALO FIX, PART ONE: background texels are not smoothed against at all.
         if (s >= uBackground) continue;
 
         float ws = exp(-float(i * i) / twoSigma2);
 
-        // PART TWO: samples are also weighted down by how far their depth
-        // is from the centre's, so two separate sheets of fluid that
-        // happen to overlap on screen do not bleed into one another.
+        // PART TWO: samples are also weighted down by how far their depth is from the centre's,
+        // so two separate sheets of fluid that happen to overlap on screen do not bleed into
+        // one another.
         float dd = (s - centre) * uDepthFalloff;
         float wd = exp(-dd * dd);
 
@@ -134,7 +125,7 @@ void main() {
 }
 )GLSL";
 
-// --- Pass 4: additive thickness ---------------------------------------
+// Pass 4: additive thickness
 const char* kThicknessVS = R"GLSL(
 #version 330 core
 layout(location = 0) in vec3 aPos;
@@ -159,11 +150,8 @@ void main() {
     vec2 c = gl_PointCoord * 2.0 - 1.0;
     float r2 = dot(c, c);
     if (r2 > 1.0) discard;
-    // Chord length through the sphere at this offset from its centre --
-    // the actual optical path a ray takes, not a constant per particle.
-    // Summed additively with the depth test off, this is the total
-    // thickness of fluid along the view ray, which is what Beer-Lambert
-    // absorption needs.
+    // Chord length through the sphere at this offset from its centre -- the actual optical path
+    // a ray takes, not a constant per particle.
     outThickness = 2.0 * uRadius * sqrt(1.0 - r2);
 }
 )GLSL";
@@ -175,9 +163,7 @@ uniform sampler2D uThickness;
 uniform vec2 uTexel;
 out float outThickness;
 void main() {
-    // A plain separable-ish 3x3 Gaussian. Thickness has no silhouettes to
-    // preserve -- it is already a smooth accumulation -- so the bilateral
-    // machinery would only cost time here.
+    // A plain separable-ish 3x3 Gaussian.
     float sum = 0.0;
     float wsum = 0.0;
     for (int y = -2; y <= 2; ++y) {
@@ -191,7 +177,7 @@ void main() {
 }
 )GLSL";
 
-// --- Pass 5: composite ------------------------------------------------
+// Pass 5: composite
 const char* kCompositeFS = R"GLSL(
 #version 330 core
 in vec2 vUV;
@@ -244,21 +230,15 @@ vec3 neighbourPos(vec2 uv, float centreDepth) {
     return viewPosOf(uv, d >= uBackground ? centreDepth : d);
 }
 
-// Pick whichever of the forward/backward difference is smaller. At a
-// silhouette one of the two straddles the edge and is huge; taking the
-// smaller keeps the normal on the surface instead of tipping it toward
-// whatever lies behind.
+// Pick whichever of the forward/backward difference is smaller.
 vec3 minDiff(vec3 centre, vec3 plus, vec3 minus) {
     vec3 a = plus - centre;
     vec3 b = centre - minus;
     return (dot(a, a) < dot(b, b)) ? a : b;
 }
 
-// A cheap analytic environment: a cool sky above, a darker ground below,
-// with the horizon softened. Deliberately not a loaded HDR cubemap --
-// this exists to give the specular and the reflection something plausible
-// to pick up, and a single texture asset would be one more thing to ship
-// and to get wrong.
+// A cheap analytic environment: a cool sky above, a darker ground below, with the horizon
+// softened.
 vec3 environmentColor(vec3 dir) {
     float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 sky = vec3(0.40, 0.52, 0.62);
@@ -277,13 +257,7 @@ void main() {
     if (sceneEye < depth) { FragColor = vec4(scene, 1.0); return; }
 
     vec3 P = viewPosOf(vUV, depth);
-    // A neighbour that is BACKGROUND is clamped to the centre's depth
-    // rather than used at 1e6. Sampling the sentinel produces a position
-    // a kilometre away, a wildly wrong finite difference, and a garbage
-    // normal -- which showed up as a ring of black speckle all around the
-    // fluid's silhouette and along every thin sheet. Clamping makes the
-    // difference purely lateral there, so a silhouette pixel gets a
-    // camera-facing normal instead of a random one.
+    // A neighbour that is BACKGROUND is clamped to the centre's depth rather than used at 1e6.
     vec3 Px  = neighbourPos(vUV + vec2(uTexel.x, 0.0), depth);
     vec3 Pxm = neighbourPos(vUV - vec2(uTexel.x, 0.0), depth);
     vec3 Py  = neighbourPos(vUV + vec2(0.0, uTexel.y), depth);
@@ -300,32 +274,14 @@ void main() {
 
     float thickness = texture(uThickness, vUV).r * uThicknessScale;
 
-    // REFRACTION. Offset the background sample along the surface normal,
-    // by more where the fluid is thicker. Clamped so a near-silhouette
-    // normal cannot fling the sample across the frame.
+    // REFRACTION. Offset the background sample along the surface normal, by more where the
+    // fluid is thicker.
     vec2 offset = N.xy * uRefract * clamp(thickness * 4.0, 0.0, 1.0);
     offset = clamp(offset, vec2(-0.08), vec2(0.08));
     vec3 refracted = texture(uSceneColor, clamp(vUV + offset, vec2(0.0), vec2(1.0))).rgb;
 
-    // BEER-LAMBERT. Colour comes from absorption over the optical path,
-    // NOT from a diffuse albedo: deep volume tints strongly, thin sheets
-    // stay nearly clear. This is why a splash sheet and a settled pool
-    // look like the same fluid at different depths rather than like two
-    // different materials.
-    //
-    // TWO SEPARATE TERMS, and keeping them separate matters. The first is
-    // the background seen THROUGH the fluid, attenuated per channel by
-    // exp(-sigma_a * d). The second is light scattered back out of the
-    // volume toward the eye, which saturates with optical depth.
-    //
-    // The scattering term uses a SCALAR optical depth, not the per-channel
-    // (1 - transmittance). Using the per-channel complement is the obvious
-    // thing to write and it is wrong: (1 - transmittance) is largest in
-    // whichever channel is absorbed MOST, so the emergent colour comes out
-    // as the complement of the fluid's absorption spectrum. Water, whose
-    // absorption is strongest in red, then renders brown. (Observed
-    // directly -- the first working frames of the dam break came out the
-    // colour of rust.)
+    // BEER-LAMBERT. Colour comes from absorption over the optical path, NOT from a diffuse
+    // albedo: deep volume tints strongly, thin sheets stay nearly clear.
     vec3 transmittance = exp(-uAbsorption * thickness);
     float opticalDepth = 1.0 - exp(-uScatter * thickness);
     vec3 body = refracted * transmittance + uTint * opticalDepth;
@@ -338,18 +294,8 @@ void main() {
 
     vec3 color = mix(body, reflected, F);
 
-    // SPECULAR from the three-point rig, in world space so the highlight
-    // sweeps across the surface as the camera orbits rather than staying
-    // pinned to it.
-    //
-    // Each lobe is modulated by Fresnel at its own HALF-VECTOR, not by the
-    // view-normal Fresnel F used for the reflection mix. Reusing F here is
-    // an easy mistake with a very visible consequence: F is 0.02 for water
-    // at normal incidence, so a face-on surface would show essentially no
-    // highlight at all and the fluid would read as a flat coloured shape
-    // with no sense of a surface. A highlight is the reflection of the
-    // light in a microfacet whose normal is H, so H is what its Fresnel
-    // takes.
+    // SPECULAR from the three-point rig, in world space so the highlight sweeps across the
+    // surface as the camera orbits rather than staying pinned to it.
     vec3 spec = vec3(0.0);
     vec3 L1 = normalize(-uKeyDir);
     vec3 L2 = normalize(-uFillDir);
@@ -401,9 +347,9 @@ void FluidRenderer::resize(int width, int height) {
 
 void FluidRenderer::ensureCapacity(size_t count) {
     if (count <= capacity_) return;
-    // Grow with headroom: emitters make the particle count rise during a
-    // run, and reallocating the GPU buffer on the exact step each new
-    // particle appears would stall the pipeline every frame.
+    // Grow with headroom: emitters make the particle count rise during a run, and reallocating
+    // the GPU buffer on the exact step each new particle appears would stall the pipeline every
+    // frame.
     capacity_ = std::max<size_t>(count * 2, 4096);
     glBindVertexArray(vao_);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_);
@@ -437,21 +383,16 @@ void FluidRenderer::render(const OffscreenTarget& scene, OffscreenTarget& output
                             const LightingSpec& lighting, const Params& params) {
     const float pointScale =
         static_cast<float>(height_) / (2.0f * std::tan(fovYRadians * 0.5f));
-    // gl_PointSize has an implementation-defined ceiling. 255 is the
-    // conservative floor across GL 3.3 core implementations; clamping to
-    // it means a camera very close to the fluid under-sizes the impostors
-    // and can open holes, rather than the driver silently clamping to
-    // something smaller. Documented in docs/rendering.md under known
-    // limitations, with "pull the camera back" as the remedy.
+    // gl_PointSize has an implementation-defined ceiling. 255 is the conservative floor across
+    // GL 3.3 core implementations.
     constexpr float maxPointSize = 255.0f;
     const glm::vec2 texel(1.0f / static_cast<float>(width_), 1.0f / static_cast<float>(height_));
 
-    // ---- Pass 1: depth ----
+    // Pass 1: depth
     depthTarget_->bind();
-    // The colour attachment is cleared to the background sentinel, not to
-    // zero: zero is a perfectly valid eye depth (the camera's own plane),
-    // so clearing to it would make the whole background read as fluid
-    // pressed against the lens.
+    // The colour attachment is cleared to the background sentinel, not to zero: zero is a
+    // perfectly valid eye depth (the camera's own plane), so clearing to it would make the
+    // whole background read as fluid pressed against the lens.
     glClearColor(kBackgroundDepth, kBackgroundDepth, kBackgroundDepth, kBackgroundDepth);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
@@ -472,7 +413,7 @@ void FluidRenderer::render(const OffscreenTarget& scene, OffscreenTarget& output
         glBindVertexArray(0);
     }
 
-    // ---- Pass 2: separable bilateral smoothing, ping-ponged ----
+    // Pass 2: separable bilateral smoothing, ping-ponged
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE_V);
     blurShader_->use();
@@ -498,15 +439,13 @@ void FluidRenderer::render(const OffscreenTarget& scene, OffscreenTarget& output
         src = smoothB_->colorTexture();
     }
 
-    // ---- Pass 4: thickness ----
+    // Pass 4: thickness
     thickness_->bind();
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
-    // Additive with the depth test OFF, on purpose: every particle along
-    // the ray must contribute, including the ones behind the front
-    // surface. That is what makes this a path length rather than a
-    // silhouette.
+    // Additive with the depth test OFF, on purpose: every particle along the ray must
+    // contribute, including the ones behind the front surface.
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE);
     if (particleCount_ > 0) {
@@ -528,7 +467,7 @@ void FluidRenderer::render(const OffscreenTarget& scene, OffscreenTarget& output
     thicknessBlurShader_->setTexture("uThickness", 0, thickness_->colorTexture());
     quad_.draw();
 
-    // ---- Pass 5: composite ----
+    // Pass 5: composite
     output.bind();
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

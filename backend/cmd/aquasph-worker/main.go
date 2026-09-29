@@ -1,6 +1,4 @@
 // aquasph-worker claims jobs from the queue and runs the solver.
-// Scale horizontally by running more of them; see docs/platform/runbook.md
-// for sizing concurrency against solver threads.
 package main
 
 import (

@@ -68,12 +68,7 @@ bool Shape::containsEroded(const glm::vec3& p, float d) const {
             return radial <= radius - d && std::abs(axial) <= halfLength - d && inBox(p, lo, hi);
         }
         case ShapeType::Heightfield:
-            // Vertical erosion only. For a surface of slope m the true
-            // normal-distance erosion would be d*sqrt(1+m^2); at the
-            // slopes these scenarios use (<= 0.3) that is a <5% thicker
-            // shell than requested, which errs toward more boundary
-            // particles rather than fewer -- the safe direction, since a
-            // shell that is too thin is exactly how fluid leaks.
+            // Vertical erosion only; at the slopes used (<= 0.3) the shell is under 5% thicker than asked.
             return inBox(p, lo, hi) && p.y <= field.heightAt(p.x, p.z) - d;
     }
     return false;
@@ -121,10 +116,9 @@ float Shape::approximateVolume() const {
 
 namespace {
 
-// Shared lattice walk. The loop bounds are computed from the bounding box
-// in integer steps so the lattice is exactly reproducible: no accumulation
-// of `x += spacing`, which would drift differently depending on where the
-// box starts.
+// Shared lattice walk. The loop bounds are computed from the bounding box in integer steps so
+// the lattice is exactly reproducible: no accumulation of `x += spacing`, which would drift
+// differently depending on where the box starts.
 template <typename Accept>
 void latticeWalk(const glm::vec3& lo, const glm::vec3& hi, float spacing, Accept&& accept,
                   std::vector<glm::vec3>& out) {
@@ -186,12 +180,8 @@ void sampleBoxWalls(const glm::vec3& lo, const glm::vec3& hi, float spacing, int
     const int L = std::max(1, layers);
     const float pad = static_cast<float>(L) * spacing;
 
-    // Walk the padded box and keep points that are OUTSIDE the fluid
-    // domain, on a face that is solid. The lattice is anchored at
-    // (lo - pad) so the wall layers sit at exact multiples of `spacing`
-    // from the domain face -- a wall whose innermost layer is a fractional
-    // spacing from the fluid is the classic cause of a persistent density
-    // ripple along the floor.
+    // Walk the padded box and keep points that are OUTSIDE the fluid domain, on a face that is
+    // solid.
     const glm::vec3 outerLo = lo - glm::vec3(pad);
     const glm::vec3 outerHi = hi + glm::vec3(pad);
 
@@ -204,9 +194,7 @@ void sampleBoxWalls(const glm::vec3& lo, const glm::vec3& hi, float spacing, int
         const bool aboveZ = p.z > hi.z + 0.5f * spacing;
         if (!(belowX || aboveX || belowY || aboveY || belowZ || aboveZ)) return false;
 
-        // A corner point belongs to several faces at once; it is kept if
-        // ANY of the faces it lies outside of is solid, so an open face
-        // does not punch a hole through the adjacent solid walls' corners.
+        // A corner point belongs to several faces at once.
         if (belowX && faceSolid[0]) return true;
         if (aboveX && faceSolid[1]) return true;
         if (belowY && faceSolid[2]) return true;

@@ -98,9 +98,8 @@ func TestApplyOverridesReportsEveryErrorInSortedOrder(t *testing.T) {
 	}
 }
 
-// The cache is keyed on this hash, so two requests that mean the same
-// thing must hash the same, and any difference that changes results must
-// change the hash.
+// The cache is keyed on this hash, so two requests that mean the same thing must hash the same,
+// and any difference that changes results must change the hash.
 func TestSpecHashIsCanonical(t *testing.T) {
 	a := decode(t, `{"x": 1.0, "y": {"b": [1, 2], "a": "s"}}`)
 	b := decode(t, `{"y":{"a":"s","b":[1.0,2.00]},"x":1}`)

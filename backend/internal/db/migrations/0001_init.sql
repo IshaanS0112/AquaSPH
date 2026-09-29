@@ -51,9 +51,8 @@ CREATE TABLE jobs (
     outcome             text CHECK (outcome IN ('stable', 'unstable')),
     priority            smallint NOT NULL DEFAULT 5 CHECK (priority BETWEEN 0 AND 9),
 
-    -- What to run. spec is the fully resolved scenario, frozen at submit
-    -- time: editing a catalogue file later cannot change what an existing
-    -- job means.
+    -- What to run. spec is the fully resolved scenario, frozen at submit time: editing a
+    -- catalogue file later cannot change what an existing job means.
     scenario            text NOT NULL,
     quality             text NOT NULL CHECK (quality IN ('low', 'medium', 'high')),
     sim_time            double precision CHECK (sim_time > 0),
@@ -94,9 +93,8 @@ CREATE TABLE jobs (
     finished_at         timestamptz,
     updated_at          timestamptz NOT NULL DEFAULT now(),
 
-    -- State invariants enforced by the database, so no code path, current
-    -- or future, can write a running job without a lease or a completed
-    -- job without an outcome.
+    -- State invariants enforced by the database, so no code path, current or future, can write
+    -- a running job without a lease or a completed job without an outcome.
     CONSTRAINT running_has_lease
         CHECK (state <> 'running' OR (lease_token IS NOT NULL AND lease_expires_at IS NOT NULL)),
     CONSTRAINT only_running_has_lease

@@ -1,18 +1,7 @@
 #!/usr/bin/env bash
 # Renders one clip per scenario plus a contact sheet spanning all of them.
-#
-# Requires a display. On a headless Linux machine, run the whole script
-# under a virtual one:
-#     xvfb-run -s "-screen 0 1600x900x24" scripts/make_gallery.sh medium
-#
 # Usage: scripts/make_gallery.sh [quality] [outdir] [width] [height] [max-seconds]
-#
-# `max-seconds` caps each scenario's simulated duration. Leave it empty for
-# the full run; set it to produce a quick contact sheet, which is
-# worthwhile because software rendering (llvmpipe) is slow enough that a
-# full-duration pass over fourteen scenarios is an overnight job. Whatever
-# you pass is printed in each scenario's render summary, so a partial
-# gallery says so.
+# Headless: xvfb-run -s "-screen 0 1600x900x24" scripts/make_gallery.sh medium
 set -euo pipefail
 
 QUALITY="${1:-medium}"
@@ -58,10 +47,7 @@ for path in configs/scenarios/*.json; do
 done
 
 if command -v ffmpeg >/dev/null 2>&1 && [ "${#sheet_inputs[@]}" -gt 0 ]; then
-  # One row per four scenarios. The contact sheet exists so that visibly
-  # different phenomena can be compared at a glance -- which only works
-  # because every scenario uses the same camera framing convention and the
-  # same palette, so what differs between tiles is the physics.
+  # One row per four scenarios.
   ffmpeg -y -loglevel error -pattern_type glob -i "$OUTDIR/still_*.png" \
     -filter_complex "scale=640:-1,tile=4x4:margin=8:padding=8:color=0x111318" \
     -frames:v 1 "$OUTDIR/contact_sheet.png"

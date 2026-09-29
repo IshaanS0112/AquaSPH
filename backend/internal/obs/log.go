@@ -6,9 +6,7 @@ import (
 	"log/slog"
 )
 
-// NewLogger returns a structured logger. JSON is the production format
-// (one object per line, ready for Loki/CloudWatch/etc.); text is for a
-// developer's terminal.
+// NewLogger returns a structured logger.
 func NewLogger(w io.Writer, level slog.Level, format, service string) *slog.Logger {
 	opts := &slog.HandlerOptions{Level: level}
 	var h slog.Handler

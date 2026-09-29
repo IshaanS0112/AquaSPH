@@ -9,17 +9,9 @@ import (
 	"github.com/IshaanS0112/AquaSPH/backend/internal/events"
 )
 
-// jobEvents streams a job's progress as Server-Sent Events:
-//
-//	snapshot  the full job, once, on connect
-//	progress  solver progress (via Redis when available, else polled)
-//	state     a state transition
-//	done      the final job representation; the stream then closes
-//
-// Correctness never depends on Redis: the handler subscribes *before*
-// reading the snapshot (so nothing published in between is missed) and
-// polls Postgres, the source of truth, on a timer regardless. A lost
-// pub/sub message costs one progress update, never a stuck client.
+// jobEvents streams a job's progress as Server-Sent Events (snapshot, progress, state, done).
+// It subscribes to Redis before reading the snapshot and also polls Postgres, so a lost
+// message can never leave a client waiting.
 func (s *Server) jobEvents(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.pathID(w, r)
 	if !ok {

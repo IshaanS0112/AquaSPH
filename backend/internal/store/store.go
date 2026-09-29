@@ -1,8 +1,5 @@
-// Package store is the Postgres data-access layer for everything except
-// the queue's claim/lease protocol (package queue). Every tenant-facing
-// read and write takes the tenant ID and filters on it in SQL: isolation
-// is enforced by the query, not by a check in the handler that a future
-// handler could forget.
+// Package store is the Postgres data-access layer for everything except the queue's claim/lease
+// protocol (package queue).
 package store
 
 import (
@@ -46,9 +43,7 @@ func IsUniqueViolation(err error) bool {
 	return errors.As(err, &pg) && pg.Code == "23505"
 }
 
-// NotifyWorkers wakes idle workers once tx commits. NOTIFY inside a
-// transaction is delivered on commit and dropped on rollback, which is
-// exactly the semantics enqueue needs.
+// NotifyWorkers wakes idle workers once tx commits.
 func NotifyWorkers(ctx context.Context, q Querier) error {
 	_, err := q.Exec(ctx, `SELECT pg_notify($1, '')`, NotifyChannel)
 	return err

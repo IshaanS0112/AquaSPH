@@ -1,11 +1,8 @@
 # Local deployment of the whole platform:
-#
 #   docker compose up --build -d
 #   docker compose exec api aquasph-admin tenant create demo
-#   docker compose exec api aquasph-admin key create demo      # prints the key once
-#
-# Then point aquactl at http://localhost:8080. The credentials below are
-# for this local stack only.
+#   docker compose exec api aquasph-admin key create demo    # prints the key once
+# Then point aquactl at http://localhost:8080. Credentials here are for local use only.
 name: aquasph
 
 x-common-env: &common-env
@@ -61,9 +58,7 @@ services:
   worker:
     image: aquasph:local
     command: ["aquasph-worker"]
-    # The worker is not an init process. With init: true, tini is PID 1
-    # and reaps any orphaned solver zombie; without it they accumulate
-    # (observed in the failure-injection run, docs/platform/runbook.md).
+    # tini as PID 1 reaps orphaned solver processes; the worker is not an init process.
     init: true
     environment:
       <<: *common-env
@@ -77,9 +72,8 @@ services:
       interval: 5s
       timeout: 4s
       retries: 10
-    # Longer than AQUASPH_DRAIN_TIMEOUT (20s default): Docker's default of
-    # 10s would SIGKILL a worker mid-drain and turn every deploy into a
-    # batch of lease expiries.
+    # Longer than AQUASPH_DRAIN_TIMEOUT (20s default): Docker's default of 10s would SIGKILL a
+    # worker mid-drain and turn every deploy into a batch of lease expiries.
     stop_grace_period: 30s
     deploy:
       replicas: 2

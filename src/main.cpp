@@ -1,24 +1,4 @@
 // AquaSPH -- headless scenario runner.
-//
-// Every scenario, Tier 1 and Tier 2 alike, runs through this one entry
-// point: `aquasph --scenario <name>`. It reports STABLE/UNSTABLE with a
-// matching exit code and can emit a machine-readable metrics file, which
-// is what lets CI assert on physics rather than only on "it did not
-// crash".
-//
-// There is no second code path for the dam break any more. v1 had a
-// hardcoded initializer plus a flat Config struct; both are gone, and the
-// dam break is now configs/scenarios/dam_break.json like everything else.
-// Keeping a bespoke path for one scenario is exactly how a "scenario
-// engine" quietly becomes a demo with a config file.
-//
-// Process contract (what the platform worker in backend/ relies on):
-//   exit 0 STABLE, 1 UNSTABLE, 2 usage/load error, 3 CANCELLED.
-//   --progress-json makes stdout a stream of JSON lines and nothing else.
-//   SIGTERM/SIGINT stop the run at the next step boundary and still write
-//   metrics, marked CANCELLED. A second signal falls through to the
-//   default action, so an impatient Ctrl-C twice still kills it.
-// docs/platform/TRD.md section 6 documents the stream.
 #include <chrono>
 #include <cmath>
 #include <csignal>
@@ -51,10 +31,8 @@ constexpr int kExitUnstable = 1;
 constexpr int kExitUsage = 2;
 constexpr int kExitCancelled = 3;
 
-// Written only by the signal handler, read once per step by the main
-// loop. sig_atomic_t is the one type the standard guarantees can be
-// written from a handler; the handler does nothing else that is not
-// async-signal-safe (signal and raise are both on the POSIX list).
+// Written only by the signal handler, read once per step by the main loop. sig_atomic_t is the
+// one type the standard guarantees can be written from a handler.
 volatile std::sig_atomic_t g_stopRequested = 0;
 
 extern "C" void onStopSignal(int sig) {
@@ -112,10 +90,8 @@ CliArgs parseArgs(int argc, char** argv) {
             }
             return argv[++i];
         };
-        // std::stoi/stof throw on anything unparseable, and an uncaught
-        // exception out of argument parsing means `terminate called after
-        // throwing` in response to a typo. Named lambdas so every numeric
-        // flag reports which flag and what it received.
+        // std::stoi/stof throw on anything unparseable, and an uncaught exception out of
+        // argument parsing means `terminate called after throwing` in response to a typo.
         auto asInt = [&](const char* what) -> int {
             const std::string v = next(what);
             try { return std::stoi(v); }
@@ -176,9 +152,9 @@ CliArgs parseArgs(int argc, char** argv) {
     return a;
 }
 
-// One JSON object per line, flushed immediately: stdout is a pipe when
-// the worker reads it, and a pipe is block-buffered, so without the flush
-// a consumer would see progress in 4 KiB bursts or only at exit.
+// One JSON object per line, flushed immediately: stdout is a pipe when the worker reads it, and
+// a pipe is block-buffered, so without the flush a consumer would see progress in 4 KiB bursts
+// or only at exit.
 void emitJsonLine(const std::string& body) {
     std::cout << "{" << body << "}\n" << std::flush;
 }
@@ -269,9 +245,8 @@ int main(int argc, char** argv) {
         return kExitUsage;
     }
 
-    // Installed only now: a signal during argument parsing or scenario
-    // loading has nothing partial worth saving, so the default action
-    // (terminate) is the right one there.
+    // Installed only now: a signal during argument parsing or scenario loading has nothing
+    // partial worth saving, so the default action (terminate) is the right one there.
     std::signal(SIGTERM, onStopSignal);
     std::signal(SIGINT, onStopSignal);
 
@@ -292,10 +267,9 @@ int main(int argc, char** argv) {
     float nextReport = 0.0f;
     const float reportInterval = std::max(scenario.duration.simulatedTime / 10.0f, 1.0e-6f);
     float prevDt = 0.0f;
-    // Progress lines are throttled on wall time, not simulated time or
-    // steps: a consumer cares how often it hears from the solver, and a
-    // stiff scenario can take thousands of steps per simulated
-    // millisecond.
+    // Progress lines are throttled on wall time, not simulated time or steps: a consumer cares
+    // how often it hears from the solver, and a stiff scenario can take thousands of steps per
+    // simulated millisecond.
     constexpr double kProgressIntervalS = 0.5;
     double nextProgressWall = kProgressIntervalS;
 
@@ -308,9 +282,7 @@ int main(int argc, char** argv) {
         metrics.sample(sim);
 
         if (!args.quiet && TimeStepController::isOrderOfMagnitudeChange(prevDt, st.dt)) {
-            // An order-of-magnitude drop in dt marks a real physical event
-            // -- impact, wave breaking, jet formation -- and is worth
-            // seeing rather than silently absorbing.
+            // An order-of-magnitude drop in dt marks a real physical event.
             std::cout << "  [dt] t=" << std::fixed << std::setprecision(4) << st.time
                       << " s: " << std::scientific << std::setprecision(2) << prevDt
                       << " -> " << st.dt << " s  (|v|max=" << std::fixed << std::setprecision(2)
@@ -363,9 +335,7 @@ int main(int argc, char** argv) {
     const int exitCode = cancelled ? kExitCancelled : (rep.stable ? kExitStable : kExitUnstable);
 
     if (args.progressJson) {
-        // No human summary: stdout is a JSON-lines stream. The full
-        // result is the --metrics file; "done" carries just enough for a
-        // consumer to act without opening it.
+        // No human summary: stdout is a JSON-lines stream.
         if (!args.metricsPath.empty() && !rep.writeJson(args.metricsPath)) {
             std::cerr << "[aquasph] Failed to write metrics to " << args.metricsPath << "\n";
             return kExitUsage;

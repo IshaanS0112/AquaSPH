@@ -15,9 +15,7 @@ type QueueStats interface {
 	OldestQueuedAge(ctx context.Context) (time.Duration, error)
 }
 
-// QueueCollector reports queue depth at scrape time, straight from
-// Postgres. Scraped state beats a gauge updated on every transition: it
-// cannot drift, and it is correct no matter which replica is scraped.
+// QueueCollector reports queue depth at scrape time, straight from Postgres.
 type QueueCollector struct {
 	q      QueueStats
 	log    *slog.Logger

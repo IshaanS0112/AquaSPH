@@ -146,9 +146,8 @@ func (s *Server) authenticate(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		k, tenant, err := s.store.LookupAPIKey(r.Context(), prefix)
-		// Same response for "no such key" and "wrong secret", and the hash
-		// comparison is constant-time, so a prefix learned from a log line
-		// gives an attacker nothing to iterate on.
+		// Same response for "no such key" and "wrong secret", and the hash comparison is
+		// constant-time, so a prefix learned from a log line gives an attacker nothing to iterate on.
 		if err != nil || !auth.Verify(key, k.SecretHash) {
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {
 				s.writeError(w, r, err)
@@ -169,9 +168,7 @@ func (s *Server) authenticate(next http.HandlerFunc) http.HandlerFunc {
 		if s.limiter != nil {
 			d, err := s.limiter.Allow(r.Context(), tenant.ID.String(), tenant.RatePerMinute, tenant.RateBurst)
 			if err != nil {
-				// Fail open: Redis being down should degrade protection,
-				// not take the API down with it. The counter makes the
-				// degradation visible to alerting.
+				// Fail open: Redis being down should degrade protection, not take the API down with it.
 				s.metrics.RateLimitErrors.Inc()
 				s.log.Warn("rate limiter unavailable; allowing request", "err", err)
 			} else {

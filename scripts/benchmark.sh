@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Throughput and scaling sweep. Every number in
-# benchmarks/scaling_results.md comes from this script -- measured, never
-# estimated.
-#
+# Throughput and scaling sweep. Every number in benchmarks/scaling_results.md comes from this
+# script -- measured, never estimated.
 # Usage: scripts/benchmark.sh [steps] [scenario]
 set -u
 STEPS="${1:-40}"

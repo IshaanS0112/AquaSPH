@@ -27,12 +27,9 @@ MaterialTable waterOnly(float viscosity = 5.0f, float surfaceTension = 0.0f) {
 
 } // namespace
 
-// REGRESSION TEST FOR A REAL SHIPPED BUG. The v1 viscous term paired
-// (v_j - v_i) with r_ij . gradW_ij, which is negative everywhere inside
-// the kernel support, so the resulting "viscosity" accelerated particles
-// apart in proportion to their relative velocity. Measured directly at
-// the time: two particles in pure shear received +86 N along their own
-// velocity. A viscous term must always oppose relative motion.
+// REGRESSION TEST FOR A REAL SHIPPED BUG. The v1 viscous term paired (v_j - v_i) with r_ij .
+// gradW_ij, which is negative everywhere inside the kernel support, so the resulting
+// "viscosity" accelerated particles apart in proportion to their relative velocity.
 TEST(ForceCompute, ViscosityOpposesRelativeVelocity) {
     CubicSplineKernel kernel(kH);
     const MaterialTable mats = waterOnly();
@@ -63,13 +60,8 @@ TEST(ForceCompute, ViscosityOpposesRelativeVelocity) {
     EXPECT_NEAR(ps[0].force.x, -ps[1].force.x, std::abs(ps[0].force.x) * 1e-4f + 1e-9f);
 }
 
-// REGRESSION TEST FOR THE SECOND HALF OF THE SAME BUG. v1 seeded the
-// accumulator with m_i * gravity (a force) and then added the SPH
-// pressure term (an acceleration) to it. The integrator divided the total
-// by m_i, so every pressure gradient in the simulation came out scaled by
-// 1/m_i -- an eleven-fold overstatement at the default scenario's mass.
-// Here: the stored force must equal m_i times the textbook acceleration,
-// not the acceleration itself.
+// REGRESSION TEST FOR THE SECOND HALF OF THE SAME BUG. v1 seeded the accumulator with m_i *
+// gravity (a force) and then added the SPH pressure term (an acceleration) to it.
 TEST(ForceCompute, StoresForceNotAcceleration) {
     CubicSplineKernel kernel(kH);
     const MaterialTable mats = waterOnly(/*viscosity=*/0.0f);

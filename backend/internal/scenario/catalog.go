@@ -31,9 +31,7 @@ var nameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 // ValidName reports whether s is an acceptable scenario name.
 func ValidName(s string) bool { return nameRE.MatchString(s) }
 
-// LoadCatalog reads every *.json file in dir. A file that fails to parse
-// fails the load: an API that silently drops a scenario from its
-// catalogue is worse than one that refuses to start.
+// LoadCatalog reads every *.json file in dir.
 func LoadCatalog(dir string) (*Catalog, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
 	if err != nil {

@@ -1,15 +1,4 @@
 // PHASE 8: does the architecture actually deliver what it claims?
-//
-// The claim is that a new phenomenon is a composition of existing
-// primitives, not new solver code. That is easy to assert and easy to be
-// wrong about, because every scenario in configs/scenarios/ was written
-// alongside the primitives and could have quietly shaped them.
-//
-// These tests therefore build combinations that NO shipped scenario uses,
-// entirely through the public scenario API, and assert they run. If any
-// of them needed a change to ForceCompute, Integrator or LinkedCell, the
-// abstraction would be wrong -- and this file is where that would show up
-// as a compile error rather than as a vague feeling.
 #include <gtest/gtest.h>
 #include <cmath>
 #include <cstdio>
@@ -39,11 +28,9 @@ void runFor(Simulation& sim, float seconds) {
 
 } // namespace
 
-// A combination no shipped scenario uses: a MOVING obstacle sweeping
-// through fluid that an emitter is still delivering, while a sink drains
-// it, under a time-varying external force, with two materials present.
-// Every one of those primitives exists for a different scenario; nothing
-// in the solver knows they can be combined.
+// A combination no shipped scenario uses: a MOVING obstacle sweeping through fluid that an
+// emitter is still delivering, while a sink drains it, under a time-varying external force,
+// with two materials present.
 TEST(Extensibility, UnusedCombinationOfPrimitivesRunsWithNoSolverChange) {
     Scenario s;
     s.name = "extensibility_combination";
@@ -138,9 +125,7 @@ TEST(Extensibility, UnusedCombinationOfPrimitivesRunsWithNoSolverChange) {
     }
 }
 
-// A wave generator is an obstacle with prescribed motion. Putting one in a
-// scenario that also has terrain and a sink -- a combination the shipped
-// coastal scenarios do not use -- must not need anything new either.
+// A wave generator is an obstacle with prescribed motion.
 TEST(Extensibility, WaveGeneratorComposesWithTerrainAndASink) {
     Scenario s;
     s.name = "extensibility_wave_terrain";
@@ -199,9 +184,8 @@ TEST(Extensibility, WaveGeneratorComposesWithTerrainAndASink) {
     EXPECT_EQ(sim.unstableCount(), 0);
 }
 
-// A scenario with no fluid region at all, filled only by an emitter, and
-// draining through an open face rather than a sink. Nothing shipped does
-// exactly this either.
+// A scenario with no fluid region at all, filled only by an emitter, and draining through an
+// open face rather than a sink.
 TEST(Extensibility, EmitterOnlyScenarioWithOpenOutflow) {
     Scenario s;
     s.name = "extensibility_flow_through";
@@ -237,18 +221,6 @@ TEST(Extensibility, EmitterOnlyScenarioWithOpenOutflow) {
 }
 
 // The face mode that is NOT there, and why this test exists.
-//
-// A `periodic` mode was implemented first, as four lines wrapping a
-// particle's position at the domain face. It does not produce a periodic
-// domain: the neighbour search computes separations directly, so a
-// particle near one end has no neighbours at the other, sees a free
-// surface exactly where the domain is meant to be continuous, and the
-// fluid piles up at the wrap plane. This test caught it -- a driven
-// channel lost more than half its fluid through the open lid within half
-// a second -- and the mode was removed rather than shipped.
-//
-// What remains is the guarantee that asking for it says so, loudly,
-// instead of silently substituting something else.
 TEST(Extensibility, PeriodicFacesAreRejectedRatherThanSilentlyApproximated) {
     const char* kJson = R"JSON({
       "name": "periodic_request",

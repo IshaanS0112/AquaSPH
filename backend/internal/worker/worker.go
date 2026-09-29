@@ -1,6 +1,6 @@
-// Package worker claims jobs from the queue and runs them through the
-// solver: cache check, workdir, solver supervision with heartbeats,
-// artifact upload, and a fenced write of the outcome.
+// Package worker claims jobs from the queue and runs them through the solver: cache check,
+// workdir, solver supervision with heartbeats, artifact upload, and a fenced write of the
+// outcome.
 package worker
 
 import (
@@ -87,9 +87,9 @@ func New(cfg Config, st *store.Store, q *queue.Queue, art artifacts.Store, pub e
 func (w *Worker) ID() uuid.UUID    { return w.id }
 func (w *Worker) SolverID() string { return w.solverID }
 
-// Run claims and executes jobs until ctx is cancelled, then drains: it
-// stops claiming, gives running jobs DrainTimeout to finish, and hands
-// back (without charging an attempt) any that do not.
+// Run claims and executes jobs until ctx is cancelled, then drains: it stops claiming, gives
+// running jobs DrainTimeout to finish, and hands back (without charging an attempt) any that do
+// not.
 func (w *Worker) Run(ctx context.Context) error {
 	host, _ := os.Hostname()
 	if err := w.store.RegisterWorker(ctx, &domain.Worker{
@@ -114,9 +114,8 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 	})
 
-	// Jobs run under their own context, not ctx: a SIGTERM to the worker
-	// should first let them finish (drain), and only cancel them when the
-	// drain deadline passes.
+	// Jobs run under their own context, not ctx: a SIGTERM to the worker should first let them
+	// finish (drain), and only cancel them when the drain deadline passes.
 	jobsCtx, cancelJobs := context.WithCancelCause(context.Background())
 	defer cancelJobs(nil)
 	var running sync.WaitGroup
@@ -314,9 +313,8 @@ func (w *Worker) cacheLookup(ctx context.Context, job *domain.Job, cacheKey stri
 	return src
 }
 
-// heartbeat renews the lease and relays cancellation until done closes.
-// Losing the lease stops the solver at once: the job now belongs to a
-// different attempt and this one's result will be rejected anyway.
+// heartbeat renews the lease and relays cancellation until done closes. Losing the lease
+// stops the solver at once.
 func (w *Worker) heartbeat(ctx context.Context, log *slog.Logger, job *domain.Job, token uuid.UUID,
 	latest *atomic.Pointer[domain.Progress], stop context.CancelCauseFunc, done <-chan struct{}) {
 	t := time.NewTicker(w.cfg.HeartbeatInterval)
@@ -350,10 +348,8 @@ func (w *Worker) heartbeat(ctx context.Context, log *slog.Logger, job *domain.Jo
 	}
 }
 
-// record turns a solver Outcome into a queue transition. Order matters:
-// a lost lease trumps everything (the result is not ours to write), and a
-// run that reached a result counts as that result even if a deadline
-// fired in the same instant.
+// record turns a solver Outcome into a queue transition. A lost lease wins over everything:
+// the result is not ours to write.
 func (w *Worker) record(ctx context.Context, log *slog.Logger, job *domain.Job, token uuid.UUID, cacheKey, dir string,
 	out *solver.Outcome, last *domain.Progress) {
 	dur := out.Duration.Seconds()
@@ -441,9 +437,7 @@ func (w *Worker) fail(ctx context.Context, log *slog.Logger, job *domain.Job, to
 	w.finished(ctx, log.With("error_code", code, "error", msg), job, result, state, err, dur)
 }
 
-// failInternal records a failure of the worker's own machinery (disk,
-// artifact store). It is retryable: another worker, or this one later,
-// may well succeed.
+// failInternal records a failure of the worker's own machinery (disk, artifact store).
 func (w *Worker) failInternal(ctx context.Context, log *slog.Logger, job *domain.Job, token uuid.UUID, cause error) {
 	log.Error("internal failure", "err", cause)
 	w.fail(ctx, log, job, token, domain.ErrCodeInternal, cause.Error(), true, nil, 0)

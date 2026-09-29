@@ -17,10 +17,9 @@ LinkedCell::LinkedCell(const glm::vec3& domainMin, const glm::vec3& domainMax, f
 glm::ivec3 LinkedCell::cellCoords(const glm::vec3& pos) const {
     const glm::vec3 rel = (pos - domainMin_) / cellSize_;
     glm::ivec3 c;
-    // Non-finite coordinates land in cell 0 rather than propagating into
-    // an out-of-range index: a diverging simulation must still be able to
-    // finish its step and report UNSTABLE instead of reading out of
-    // bounds on the way there.
+    // Non-finite coordinates land in cell 0 rather than propagating into an out-of-range index:
+    // a diverging simulation must still be able to finish its step and report UNSTABLE instead
+    // of reading out of bounds on the way there.
     c.x = std::isfinite(rel.x) ? std::clamp(static_cast<int>(std::floor(rel.x)), 0, gridDims_.x - 1) : 0;
     c.y = std::isfinite(rel.y) ? std::clamp(static_cast<int>(std::floor(rel.y)), 0, gridDims_.y - 1) : 0;
     c.z = std::isfinite(rel.z) ? std::clamp(static_cast<int>(std::floor(rel.z)), 0, gridDims_.z - 1) : 0;
@@ -32,25 +31,6 @@ int LinkedCell::flatten(const glm::ivec3& c) const {
 }
 
 // COUNTING SORT, in three passes.
-//
-// Pass 1 (parallel) assigns each particle its flat cell index. Every
-// iteration writes only cellOf_[i], so it is embarrassingly parallel.
-//
-// Pass 2 (parallel count, serial prefix sum) turns per-cell occupancy
-// into the CSR start offsets. The counting increments are integers, so
-// their result does not depend on the order the atomics happen to land
-// in; the prefix sum is a sequential scan over cells and is cheap
-// (a few hundred thousand adds at the resolutions this project runs).
-//
-// Pass 3 (SERIAL, deliberately) scatters particle indices into their
-// cells in ascending particle order. The textbook parallel version uses
-// an atomic fetch-add per particle to claim a slot, which is correct but
-// leaves each cell's contents in thread-scheduling order -- and a cell's
-// order is the summation order of every neighbour loop that later reads
-// it. Float addition is not associative, so that would silently make
-// every density and force sum thread-count-dependent. The pass is one
-// array write per particle with no allocation; keeping it ordered costs
-// far less than the guarantee is worth.
 void LinkedCell::build(const std::vector<Particle>& particles) {
     const int n = static_cast<int>(particles.size());
     const int cells = cellCount();
@@ -92,10 +72,8 @@ void LinkedCell::getNeighbors(int particleIdx, const std::vector<Particle>& part
         for (int dy = -1; dy <= 1; ++dy) {
             const int y = c.y + dy;
             if (y < 0 || y >= gridDims_.y) continue;
-            // The three cells along x are contiguous in the flat index, so
-            // one slice covers all of them: their combined range is
-            // [start(x-1), end(x+1)). That turns the innermost of the
-            // three loops into a single contiguous copy.
+            // The three cells along x are contiguous in the flat index, so one slice covers all
+            // of them: their combined range is [start(x-1), end(x+1)).
             const int x0 = std::max(c.x - 1, 0);
             const int x1 = std::min(c.x + 1, gridDims_.x - 1);
             const int base = gridDims_.x * (y + gridDims_.y * z);

@@ -52,11 +52,9 @@ glm::vec3 Motion::translationAt(float t) const {
 }
 
 glm::vec3 Motion::velocityAt(float t) const {
-    // Central difference. Uniform across every TimeSeries kind (including
-    // the piecewise-linear Keyframes case, where an analytic derivative
-    // would be discontinuous at the knots), and exactly reproducible for
-    // a given t -- it must be, since this velocity enters the boundary
-    // friction term and therefore the physics.
+    // Central difference. Uniform across every TimeSeries kind (including the piecewise-linear
+    // Keyframes case, where an analytic derivative would be discontinuous at the knots), and
+    // exactly reproducible for a given t.
     constexpr float kEps = 1.0e-4f;
     const float a = displacement.at(t + kEps);
     const float b = displacement.at(t - kEps);
@@ -95,11 +93,8 @@ Obstacle WaveGenerator::toObstacle() const {
             d.decay = decay;
             break;
         case Mode::Pulse: {
-            // A single sudden displacement: the paddle advances once,
-            // over `period`, and stays there. This is the standard
-            // laboratory way to launch a solitary long-wave pulse, and it
-            // is the honest mechanism behind the tsunami_pulse scenario --
-            // a long-wave propagation experiment, not a tsunami model.
+            // A single sudden displacement: the paddle advances once, over `period`, and stays
+            // there.
             d.kind = TimeSeries::Kind::Keyframes;
             d.keys = {
                 glm::vec2(startTime, 0.0f),
@@ -109,12 +104,9 @@ Obstacle WaveGenerator::toObstacle() const {
             break;
         }
         case Mode::Superposition: {
-            // Sampled to keyframes rather than given a closed form: the
-            // sum of several sinusoids is not a TimeSeries kind, and
-            // adding one would mean a variadic TimeSeries. Sampling at
-            // 200 points per shortest period keeps the piecewise-linear
-            // reconstruction well inside the paddle's own discretisation
-            // error while leaving TimeSeries a simple, testable type.
+            // Sampled to keyframes rather than given a closed form: the sum of several
+            // sinusoids is not a TimeSeries kind, and adding one would mean a variadic
+            // TimeSeries.
             float shortest = 1.0e9f;
             for (const WaveComponent& c : components) shortest = std::min(shortest, c.period);
             if (components.empty() || shortest <= 0.0f) {
@@ -145,9 +137,9 @@ Obstacle WaveGenerator::toObstacle() const {
         }
     }
 
-    // A finite duration parks the paddle at its last position rather than
-    // letting it keep stroking: the point of a finite wave train is to
-    // watch what happens after the forcing stops.
+    // A finite duration parks the paddle at its last position rather than letting it keep
+    // stroking: the point of a finite wave train is to watch what happens after the forcing
+    // stops.
     if (duration > 0.0f && d.kind != TimeSeries::Kind::Keyframes) {
         const float stop = startTime + duration;
         const int n = 2000;

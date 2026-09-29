@@ -1,10 +1,6 @@
-// Package scenario resolves what a job will run: it loads the scenario
-// catalogue, applies JSON Pointer overrides, expands sweep grids, and
-// computes the canonical hash the result cache is keyed on.
-//
-// Everything here is pure (no I/O beyond loading the catalogue), which is
-// what lets the API validate a request completely before spending a
-// database write or any compute on it.
+// Package scenario resolves what a job will run: it loads the scenario catalogue, applies JSON
+// Pointer overrides, expands sweep grids, and computes the canonical hash the result cache is
+// keyed on.
 package scenario
 
 import (

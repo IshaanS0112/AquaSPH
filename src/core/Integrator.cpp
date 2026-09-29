@@ -17,22 +17,14 @@ void PredictorCorrectorIntegrator::step(
     // Grow only; never shrink. A sink that removes particles must not
     // hand the next step a reallocation.
     if (v0_.size() < span) { v0_.resize(span); f0_.resize(span); }
-    // Indexed as [i - begin] rather than through a base pointer biased by
-    // -begin: forming a pointer before the start of an array is undefined
-    // behaviour even when it is never dereferenced there, and sanitizers
-    // are right to flag it.
+    // Indexed as [i - begin] rather than through a base pointer biased by -begin: forming a
+    // pointer before the start of an array is undefined behaviour even when it is never
+    // dereferenced there, and sanitizers are right to flag it.
     std::vector<glm::vec3>& v0 = v0_;
     std::vector<glm::vec3>& f0 = f0_;
 
-    // All three loops below touch only particles[i] for their own index
-    // i -- no cross-particle reads or writes -- so each parallelizes
-    // trivially. Lighter per-iteration than the density/force
-    // kernels (no neighbor search here), but still real work at the
-    // particle counts this project targets, so still worth threading.
-    //
-    // Boundary particles are carried through untouched: their position and
-    // velocity are prescribed by the scenario's obstacle motion, not
-    // solved for here.
+    // All three loops below touch only particles[i] for their own index i -- no cross-particle
+    // reads or writes -- so each parallelizes trivially.
     #pragma omp parallel for schedule(static)
     for (int i = begin; i < n; ++i) {
         v0[i - begin] = particles[i].velocity;
@@ -48,23 +40,12 @@ void PredictorCorrectorIntegrator::step(
             v0[i - begin] + (f0[i - begin] / particles[i].mass) * (dt * 0.5f);
     }
 
-    // Step 2: re-evaluate forces at the half-step velocity. computeForces
-    // is itself parallelized internally; this call sits between two
-    // separate parallel regions rather than nesting inside one, since
-    // the `#pragma omp parallel for` above has already joined all
-    // threads back to the caller by the time this runs.
+    // Step 2: re-evaluate forces at the half-step velocity. computeForces is itself
+    // parallelized internally.
     recomputeForces(particles);
 
-    // Step 3 & 4: correct velocity using the half-step force, advance
-    // position with the XSPH-corrected velocity, then apply the domain
-    // faces.
-    //
-    // The containment counter and the outflow flag are the only
-    // cross-iteration state here. They are accumulated per-thread and
-    // folded once at the end rather than written under a critical
-    // section: a counter is exact under any summation order, and a
-    // boolean OR is order-independent, so neither can perturb the
-    // determinism guarantee.
+    // Step 3 & 4: correct velocity using the half-step force, advance position with the
+    // XSPH-corrected velocity, then apply the domain faces.
     long long events = 0;
     bool outflow = false;
 

@@ -1,7 +1,4 @@
-// Package events fans job progress out to SSE subscribers through Redis
-// pub/sub. It is best-effort by design: a lost message costs one progress
-// update, never correctness, because the SSE handler also polls Postgres
-// (the source of truth) for state changes.
+// Package events fans job progress out to SSE subscribers through Redis pub/sub.
 package events
 
 import (
@@ -49,10 +46,7 @@ func (r *Redis) Publish(ctx context.Context, e Event) error {
 	return r.client.Publish(ctx, Channel(e.JobID), b).Err()
 }
 
-// Subscribe returns a channel of events for one job and a function to
-// unsubscribe. The subscription is confirmed before returning, so a
-// caller that subscribes and *then* reads the job's current state from
-// Postgres cannot miss an event published in between.
+// Subscribe returns a channel of events for one job and a function to unsubscribe.
 func (r *Redis) Subscribe(ctx context.Context, jobID uuid.UUID) (<-chan Event, func()) {
 	ps := r.client.Subscribe(ctx, Channel(jobID))
 	out := make(chan Event, 16)

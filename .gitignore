@@ -1,7 +1,4 @@
-# Any build directory, not just the canonical one. `build/` alone let
-# build-dbg/ and build-g/ -- scratch trees from an ASan and a
-# RelWithDebInfo build -- get committed, which put 56 MB of object files
-# and static libraries into the history before anyone noticed.
+# Any build directory, not just the canonical one.
 build*/
 *.o
 *.obj
@@ -20,10 +17,9 @@ compile_commands.json
 _deps/
 .DS_Store
 
-# Generated output. results/validation/*.json is the exception and IS
-# committed: those three files are the evidence behind docs/validation.md,
-# they are a few kilobytes each, and a validation document whose inputs
-# cannot be inspected is an assertion rather than a result.
+# Generated output. results/validation/*.json is the exception and IS committed: those three
+# files are the evidence behind docs/validation.md, they are a few kilobytes each, and a
+# validation document whose inputs cannot be inspected is an assertion rather than a result.
 results/*
 !results/validation/
 results/validation/*

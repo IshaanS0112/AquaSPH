@@ -19,9 +19,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// SignalContext is cancelled on the first SIGINT or SIGTERM. A second
-// signal is left to its default action (terminate), so an operator can
-// always force-quit a process stuck in shutdown.
+// SignalContext is cancelled on the first SIGINT or SIGTERM.
 func SignalContext() (context.Context, context.CancelFunc) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -57,9 +55,9 @@ func MetricsHandler(reg *prometheus.Registry) http.Handler {
 	return promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})
 }
 
-// Listen binds addr now, so a port conflict fails start-up loudly
-// instead of leaving a process running without its metrics endpoint
-// (invisible to monitoring), which is what happened before this existed.
+// Listen binds addr now, so a port conflict fails start-up loudly instead of leaving a process
+// running without its metrics endpoint (invisible to monitoring), which is what happened before
+// this existed.
 func Listen(addr string) (net.Listener, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -90,9 +88,8 @@ func Serve(ctx context.Context, srv *http.Server, ln net.Listener, timeout time.
 	return srv.Shutdown(sctx)
 }
 
-// HealthCheck implements "<binary> healthcheck": GET a probe on the
-// process's own internal port and exit 0 or 1. It exists so container
-// health checks need no curl in the runtime image.
+// HealthCheck implements "<binary> healthcheck": GET a probe on the process's own internal port
+// and exit 0 or 1.
 func HealthCheck(addr, path string) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {

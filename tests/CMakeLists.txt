@@ -36,9 +36,8 @@ target_include_directories(aquasph_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 include(GoogleTest)
 gtest_discover_tests(aquasph_tests)
 
-# Process-contract tests: exit codes, signal handling and the
-# --progress-json stream, exercised on the real binary. The platform
-# worker in backend/ is built on exactly these promises.
+# Process-contract tests: exit codes, signal handling and the --progress-json stream, exercised
+# on the real binary.
 if(UNIX)
   foreach(case progress_stream sigterm_cancels profile_conflict load_error_exit_code)
     add_test(NAME CliContract.${case}

@@ -1,10 +1,4 @@
 // Emitters and sinks make the particle array grow and shrink during a run.
-// That is the single change most likely to break the project's
-// bit-identical-across-thread-counts guarantee, because it introduces
-// ORDER as a variable: if insertion or removal reordered the array
-// differently on different runs, every subsequent neighbour sum would be
-// a differently-ordered float sum and the trajectories would diverge
-// while every per-particle test still passed.
 #include <gtest/gtest.h>
 #include <cstring>
 #ifdef _OPENMP
@@ -84,9 +78,8 @@ TEST(DynamicParticles, EmissionIsBitIdenticalAcrossThreadCounts) {
 
 TEST(DynamicParticles, SinkRemovesFluidAndKeepsTheRunDeterministic) {
     Scenario s = emitterScenario();
-    // A drain across the bottom of the tank: everything the emitter
-    // delivers is eventually removed, so the population rises and then
-    // holds rather than growing without bound.
+    // A drain across the bottom of the tank: everything the emitter delivers is eventually
+    // removed, so the population rises and then holds rather than growing without bound.
     Sink drain;
     drain.shape.type = ShapeType::Box;
     drain.shape.min = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -123,9 +116,7 @@ TEST(DynamicParticles, OpenFaceRemovesOutflowWithoutCountingItUnstable) {
     while (!sim.finished()) removed += sim.step().removedThisStep;
 
     EXPECT_GT(removed, 0) << "nothing left through the open face";
-    // Departing through an Open face is an exit, not a failure. If this
-    // were counted as instability, every flood, channel and river
-    // scenario would report UNSTABLE by construction.
+    // Departing through an Open face is an exit, not a failure.
     EXPECT_EQ(sim.unstableCount(), 0);
 }
 
@@ -133,9 +124,8 @@ TEST(DynamicParticles, ParticleCeilingStopsEmissionInsteadOfGrowingWithoutBound)
     Scenario s = emitterScenario();
     s.duration.simulatedTime = 1.0f;
 
-    // The ceiling is on TOTAL particles, boundary included, so it has to
-    // be set above the tank's own wall sampling to be testing emission
-    // rather than construction.
+    // The ceiling is on TOTAL particles, boundary included, so it has to be set above the
+    // tank's own wall sampling to be testing emission rather than construction.
     const size_t boundary = Simulation(s).boundaryCount();
     const size_t ceiling = boundary + 400;
 
@@ -148,9 +138,8 @@ TEST(DynamicParticles, ParticleCeilingStopsEmissionInsteadOfGrowingWithoutBound)
 }
 
 TEST(DynamicParticles, BoundaryParticlesStayAtTheFrontOfTheArray) {
-    // Obstacle motion addresses boundary particles by a fixed index while
-    // the fluid population changes underneath, so this layout invariant is
-    // load-bearing rather than cosmetic.
+    // Obstacle motion addresses boundary particles by a fixed index while the fluid population
+    // changes underneath, so this layout invariant is load-bearing rather than cosmetic.
     Scenario s = emitterScenario();
     Sink drain;
     drain.shape.type = ShapeType::Box;

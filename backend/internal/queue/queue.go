@@ -1,7 +1,4 @@
-// Package queue implements the durable job queue on top of the jobs table
-// (ADR-0001). The concurrency argument for every query is in
-// docs/platform/TRD.md §3; the comments here point at the parts that are
-// easy to break.
+// Package queue implements the durable job queue on top of the jobs table (ADR-0001).
 package queue
 
 import (
@@ -44,10 +41,9 @@ func New(pool *pgxpool.Pool, cfg Config) *Queue {
 
 func secs(d time.Duration) float64 { return d.Seconds() }
 
-// backoffSQL computes the delay before a retried job becomes claimable:
-// exponential in the attempt number, capped, with +/-25% jitter so jobs
-// that failed together (a worker crash takes several at once) do not
-// retry together. $base and $max are seconds.
+// backoffSQL computes the delay before a retried job becomes claimable: exponential in the
+// attempt number, capped, with +/-25% jitter so jobs that failed together (a worker crash takes
+// several at once) do not retry together. $base and $max are seconds.
 const backoffSQL = `make_interval(secs => LEAST(%[2]s, %[1]s * power(2, GREATEST(attempt - 1, 0)))
 	* (0.75 + random() * 0.5))`
 
@@ -55,9 +51,8 @@ func backoff(baseParam, maxParam string) string {
 	return fmt.Sprintf(backoffSQL, baseParam, maxParam)
 }
 
-// Claim hands the highest-priority claimable job to workerID, or returns
-// (nil, nil) when there is none. A job is claimable when it is queued,
-// its run_after has passed, and its tenant is below its concurrency limit.
+// Claim hands the highest-priority claimable job to workerID, or returns (nil, nil) when there
+// is none.
 func (q *Queue) Claim(ctx context.Context, workerID uuid.UUID) (*domain.Job, error) {
 	// Must be non-nil: pgx encodes a nil slice as NULL, and
 	// "tenant_id <> ALL(NULL)" is NULL, which would match nothing.
@@ -75,17 +70,15 @@ func (q *Queue) Claim(ctx context.Context, workerID uuid.UUID) (*domain.Job, err
 	return nil, nil
 }
 
-// claimOnce returns (job, nil, nil) on success, (nil, &tenant, nil) when
-// the best candidate's tenant is at its limit, and (nil, nil, nil) when
-// nothing is claimable.
+// claimOnce returns (job, nil, nil) on success, (nil, &tenant, nil) when the best candidate's
+// tenant is at its limit, and (nil, nil, nil) when nothing is claimable.
 func (q *Queue) claimOnce(ctx context.Context, workerID uuid.UUID, saturated []uuid.UUID) (*domain.Job, *uuid.UUID, error) {
 	var claimed *domain.Job
 	var fullTenant *uuid.UUID
 	err := db.InTx(ctx, q.pool, func(tx pgx.Tx) error {
 		var id, tenantID uuid.UUID
-		// SKIP LOCKED: a row another worker is mid-claim on is invisible
-		// here instead of blocking us, so N workers claim N distinct jobs
-		// in parallel.
+		// SKIP LOCKED: a row another worker is mid-claim on is invisible here instead of blocking us,
+		// so N workers claim N distinct jobs in parallel.
 		err := tx.QueryRow(ctx, `
 			SELECT id, tenant_id FROM jobs
 			WHERE state = 'queued' AND run_after <= now() AND tenant_id <> ALL($1)
@@ -99,11 +92,8 @@ func (q *Queue) claimOnce(ctx context.Context, workerID uuid.UUID, saturated []u
 			return fmt.Errorf("select candidate: %w", err)
 		}
 
-		// Lock the tenant row before counting. Without this, two workers
-		// claiming for one tenant concurrently can both count 1 running
-		// against a limit of 2 and both proceed. The lock is only ever
-		// taken after a job lock that never waits, so there is no cycle
-		// and no deadlock.
+		// Lock the tenant row before counting, or two concurrent claims could both see room
+		// under the limit.
 		var limit int
 		if err := tx.QueryRow(ctx, `SELECT max_concurrent_jobs FROM tenants WHERE id = $1 FOR UPDATE`,
 			tenantID).Scan(&limit); err != nil {
@@ -148,9 +138,8 @@ type HeartbeatResult struct {
 	CancelRequested bool
 }
 
-// Heartbeat renews the lease, stores the latest progress (nil keeps the
-// previous value), and reports whether cancellation was requested. It
-// returns domain.ErrLeaseLost if the lease no longer belongs to token.
+// Heartbeat renews the lease, stores the latest progress (nil keeps the previous value), and
+// reports whether cancellation was requested.
 func (q *Queue) Heartbeat(ctx context.Context, jobID, token uuid.UUID, progress json.RawMessage) (HeartbeatResult, error) {
 	var res HeartbeatResult
 	err := q.pool.QueryRow(ctx, `
@@ -176,10 +165,8 @@ type Completion struct {
 	Progress  json.RawMessage
 }
 
-// Complete records a finished run. Every write from here down is fenced
-// on (id, lease_token, state='running'): a worker whose lease expired
-// while it was running gets domain.ErrLeaseLost and must discard its
-// result, because the job already belongs to another attempt.
+// Complete records a finished run. Like every write after Claim, it only matches while this
+// worker still holds the lease (fencing), so a stale worker cannot overwrite a retry.
 func (q *Queue) Complete(ctx context.Context, jobID, token uuid.UUID, c Completion) error {
 	return fenced(q.pool.Exec(ctx, `
 		UPDATE jobs SET
@@ -194,8 +181,6 @@ func (q *Queue) Complete(ctx context.Context, jobID, token uuid.UUID, c Completi
 }
 
 // CompleteFromCache completes a claimed job with a previous job's result.
-// The files are shared, not copied: artifact_job_id points at whichever
-// job's directory actually holds them.
 func (q *Queue) CompleteFromCache(ctx context.Context, jobID, token uuid.UUID, source *domain.Job, solverID, cacheKey string) error {
 	artifactJob := source.ID
 	if source.ArtifactJobID != nil {
@@ -219,9 +204,7 @@ type Partial struct {
 	Artifacts json.RawMessage
 }
 
-// Fail records a failed attempt. If retryable and attempts remain, the job
-// goes back to queued with backoff and the error kept as "last error";
-// otherwise it becomes failed. Returns the resulting state.
+// Fail records a failed attempt.
 func (q *Queue) Fail(ctx context.Context, jobID, token uuid.UUID, code, message string, retryable bool, p *Partial) (domain.JobState, error) {
 	if p == nil {
 		p = &Partial{}
@@ -266,9 +249,8 @@ func (q *Queue) Cancelled(ctx context.Context, jobID, token uuid.UUID, p *Partia
 		jobID, token, nullJSON(p.Result), nullJSON(p.Artifacts)))
 }
 
-// Release hands a job back without charging an attempt: the worker is
-// shutting down, which is not the job's fault. A job whose cancellation
-// was requested in the meantime is cancelled instead of requeued.
+// Release hands a job back without charging an attempt: the worker is shutting down, which is
+// not the job's fault.
 func (q *Queue) Release(ctx context.Context, jobID, token uuid.UUID) error {
 	return fenced(q.pool.Exec(ctx, `
 		UPDATE jobs SET
@@ -287,10 +269,8 @@ type ReapResult struct {
 	Cancelled int
 }
 
-// Reap recovers jobs whose worker stopped heartbeating. It is safe to run
-// in every worker at once: SKIP LOCKED means two reapers never touch the
-// same row, and the lease_expires_at condition is re-checked under the
-// row lock, so a heartbeat that lands first wins.
+// Reap recovers jobs whose worker stopped heartbeating. SKIP LOCKED makes it safe to run in
+// every worker at once.
 func (q *Queue) Reap(ctx context.Context, limit int) (ReapResult, error) {
 	var res ReapResult
 	rows, err := q.pool.Query(ctx, `

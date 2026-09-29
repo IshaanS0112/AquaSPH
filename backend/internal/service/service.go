@@ -1,7 +1,5 @@
-// Package service implements job and sweep submission: validation, the
-// submit-time cache lookup, quotas and idempotency, composed into one
-// transaction per request. HTTP handlers stay thin; everything with a
-// business rule in it lives here and is tested against a real database.
+// Package service implements job and sweep submission: validation, the submit-time cache
+// lookup, quotas and idempotency, composed into one transaction per request.
 package service
 
 import (

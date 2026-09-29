@@ -56,9 +56,7 @@ const (
 )
 
 var (
-	// ErrNotFound covers both "does not exist" and "belongs to another
-	// tenant". Distinguishing them would let one tenant probe for
-	// another's job IDs.
+	// ErrNotFound covers both "does not exist" and "belongs to another tenant".
 	ErrNotFound = errors.New("not found")
 	// ErrLeaseLost means a worker's fenced write matched no row: its lease
 	// expired and the job was reclaimed. The worker must discard its work.
@@ -79,9 +77,7 @@ func (e *QuotaError) Error() string {
 	return "quota exceeded: " + e.Limit
 }
 
-// IdempotencyMismatchError: the Idempotency-Key was already used with a
-// different request body. Replaying the old response would be wrong, and
-// so would executing the new request under a reused key.
+// IdempotencyMismatchError: the Idempotency-Key was already used with a different request body.
 type IdempotencyMismatchError struct{ Key string }
 
 func (e *IdempotencyMismatchError) Error() string {

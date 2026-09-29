@@ -22,10 +22,7 @@ type jobLinks struct {
 	Sweep     string `json:"sweep,omitempty"`
 }
 
-// jobResource is the public representation of a job. It is built from
-// domain.Job field by field rather than by tagging domain.Job, so internal
-// columns (lease tokens, worker IDs, cache keys) cannot leak into the API
-// by someone adding a JSON tag.
+// jobResource is the public representation of a job.
 type jobResource struct {
 	ID              uuid.UUID       `json:"id"`
 	State           domain.JobState `json:"state"`

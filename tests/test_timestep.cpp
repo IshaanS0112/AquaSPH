@@ -94,9 +94,7 @@ TEST(TimeStep, BoundaryParticlesDoNotConstrainTheStep) {
     p.dtMax = 1.0f;
     TimeStepController ctrl(p, 0.1f, 40.0f, 0.0f);
 
-    // A wave paddle sweeping at 50 m/s is prescribed motion, not a fluid
-    // stability constraint; letting it drive the CFL limit would let a
-    // fast gate throttle the entire simulation.
+    // A wave paddle sweeping at 50 m/s is prescribed motion, not a fluid stability constraint.
     std::vector<Particle> ps(1);
     ps[0].kind = ParticleKind::Boundary;
     ps[0].velocity = glm::vec3(50.0f, 0.0f, 0.0f);
