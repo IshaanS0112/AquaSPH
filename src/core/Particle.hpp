@@ -39,7 +39,14 @@ struct Particle {
     // Index into the scenario's MaterialTable. Boundary particles carry
     // 0; they have no material of their own.
     std::uint8_t material = 0;
+
+    // Explicit zeroed padding: implicit padding is uninitialised under Clang, which made
+    // memcmp-based determinism checks fail on macOS even though every field matched.
+    std::uint8_t reserved[2] = {0, 0};
 };
+
+static_assert(sizeof(Particle) == 5 * sizeof(glm::vec3) + 4 * sizeof(float) + 4,
+              "Particle must have no implicit padding bytes");
 
 inline bool isFluid(const Particle& p) { return p.kind == ParticleKind::Fluid; }
 inline bool isBoundary(const Particle& p) { return p.kind == ParticleKind::Boundary; }
