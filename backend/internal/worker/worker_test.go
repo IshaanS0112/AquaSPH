@@ -117,6 +117,23 @@ func (h *harness) waitFor(id uuid.UUID, what string, cond func(*domain.Job) bool
 
 func terminal(j *domain.Job) bool { return j.State.Terminal() }
 
+// waitMetric waits for a worker job counter: the worker updates it after the database
+// write a test observes, so reading it immediately races the worker.
+func (h *harness) waitMetric(result string, want float64) {
+	h.t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		got := promtest.ToFloat64(h.m.Jobs.WithLabelValues(result))
+		if got == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			h.t.Fatalf("metric %s = %v, want %v", result, got, want)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestCompletedJobHasResultArtifactsAndProgress(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, nil)
@@ -149,9 +166,7 @@ func TestCompletedJobHasResultArtifactsAndProgress(t *testing.T) {
 	if p.Fraction != 1 || p.Step != 20 {
 		t.Fatalf("final progress %+v", p)
 	}
-	if n := promtest.ToFloat64(h.m.Jobs.WithLabelValues("completed_stable")); n != 1 {
-		t.Fatalf("metric %v", n)
-	}
+	h.waitMetric("completed_stable", 1)
 }
 
 func TestUnstableIsACompletedResultNotAFailure(t *testing.T) {
@@ -286,13 +301,7 @@ func TestWorkerThatLosesItsLeaseStopsAndWritesNothing(t *testing.T) {
 		t.Fatalf("usurper claim: %v %v", usurper, err)
 	}
 
-	deadline := time.Now().Add(10 * time.Second)
-	for promtest.ToFloat64(h.m.Jobs.WithLabelValues("lease_lost")) != 1 {
-		if time.Now().After(deadline) {
-			t.Fatal("worker never noticed it lost the lease")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	h.waitMetric("lease_lost", 1)
 	j := h.job(id)
 	if j.State != domain.StateRunning || *j.LeaseToken != *usurper.LeaseToken || j.Result != nil {
 		t.Fatalf("zombie wrote over the new attempt: %s result=%s", j.State, j.Result)
