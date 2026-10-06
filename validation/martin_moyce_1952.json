@@ -1,0 +1,11 @@
+{
+  "source": "Martin, J. C. & Moyce, W. J. (1952), Phil. Trans. R. Soc. A 244(882), 312-324",
+  "quantity": "dam-break surge front position on a dry horizontal bed",
+  "aspect_ratio_h0_over_a": 2.0,
+  "conventions": {
+    "Z": "front position measured from the column's back wall, divided by the column width a (Z = 1 at t = 0)",
+    "T": "t * sqrt(2 g / a)"
+  },
+  "status": "EMPTY BY DESIGN -- see validation/README.md. The original tabulation was not available where this project's validation was produced, and fabricated or half-remembered reference values would make every comparison built on them worthless. Fill in `points` from the primary source and re-run scripts/validate.py; it will pick this up automatically.",
+  "points": []
+}

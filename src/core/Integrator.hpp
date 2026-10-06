@@ -6,51 +6,67 @@
 
 namespace aquasph {
 
+// What happens at a domain face.
+enum class FaceMode {
+    // Containment: the particle is placed back on the face and its outward-normal velocity
+    // component is reversed and scaled by `damping`.
+    Solid,
+    // Open: the particle has left the simulated region.
+    Open,
+
+    // THERE IS NO Periodic MODE, and its absence is deliberate.
+};
+
 struct BoundaryBox {
     glm::vec3 min;
     glm::vec3 max;
-    float damping = 0.5f; // velocity retained after a wall reflection (0=inelastic, 1=perfectly elastic)
+    // Velocity retained (and reversed) on a containment hit.
+    // 0 = inelastic/absorbing, 1 = perfectly elastic.
+    float damping = 0.5f;
+
+    // Containment does not fire until a particle is this far outside the face.
+    float tolerance = 0.0f;
+    // Per-face behaviour: -x, +x, -y, +y, -z, +z.
+    FaceMode faces[6] = {FaceMode::Solid, FaceMode::Solid, FaceMode::Solid,
+                          FaceMode::Solid, FaceMode::Solid, FaceMode::Solid};
 };
 
-// 2nd-order predictor-corrector integrator:
-//   1) predict v_half = v + (F/m) * dt/2
-//   2) recompute forces using v_half (captures the velocity-dependent
-//      viscosity term; pressure/gravity are unaffected since position
-//      hasn't moved yet at this stage)
-//   3) correct v_new = v + (F_half/m) * dt
-//   4) advance position with v_new, then apply boundary conditions
-//
-// The force-recompute step is injected as a callback rather than the
-// integrator depending on ForceCompute/LinkedCell directly -- keeps this
-// class testable in isolation (see tests/test_integrator.cpp, which uses
-// a trivial gravity-only callback with zero neighbors).
-//
-// VELOCITY CLAMP -- WHY IT'S HERE: found necessary by actually running
-// the dam-break scenario (see docs/architecture.md). Weakly-compressible
-// SPH's Tait pressure grows as (rho/rho0)^gamma, so the pressure-gradient
-// force's P/rho^2 term grows roughly as rho^(gamma-2) -- i.e. very
-// steeply once density overshoots. When the dam-break block's bottom
-// face reaches the floor, many particles hit within the same few
-// timesteps and compact briefly; the resulting force spike, combined
-// with a *fixed* dt (adaptive stepping is explicitly deferred to V2 by
-// this spec), was enough to take a particle from 0.6 m/s to 6,500 m/s to
-// literal floating-point infinity within 5 simulation steps -- classic
-// explicit-integration blowup once a locally stiff force outruns a fixed
-// timestep's stability limit. maxSpeed is a numerical safety valve, not
-// a physical parameter: real dam-break flows stay well under 10 m/s, so
-// clamping at a much higher ceiling only ever intervenes during genuine
-// numerical pathology, never during normal flow.
+// 2nd-order predictor-corrector integrator: The force-recompute step is injected as a callback
+// rather than the integrator depending on ForceCompute/LinkedCell directly.
 class PredictorCorrectorIntegrator {
 public:
-    PredictorCorrectorIntegrator(const BoundaryBox& bounds, float maxSpeed);
+    explicit PredictorCorrectorIntegrator(const BoundaryBox& bounds);
 
     void step(std::vector<Particle>& particles, float dt,
               const std::function<void(std::vector<Particle>&)>& recomputeForces);
 
+    // Number of times a Solid face had to push a particle back in-bounds since the last
+    // resetContainmentEvents().
+    long long containmentEvents() const { return containmentEvents_; }
+    void resetContainmentEvents() { containmentEvents_ = 0; }
+
+    // True once a particle has crossed an Open face and is waiting to be
+    // removed by the owner. Cleared by resetOutflow().
+    bool hasOutflow() const { return outflow_; }
+    void resetOutflow() { outflow_ = false; }
+
+    const BoundaryBox& bounds() const { return bounds_; }
+
+    // Index of the first fluid particle; the integration loops start there instead of walking a
+    // long prefix of boundary particles they would only skip.
+    void setFirstFluidIndex(int i) { firstFluid_ = i; }
+
 private:
     BoundaryBox bounds_;
-    float maxSpeed_;
-    void applyBoundary(Particle& p) const;
+    int firstFluid_ = 0;
+
+    // Scratch for the predictor-corrector's saved initial velocity and force.
+    std::vector<glm::vec3> v0_;
+    std::vector<glm::vec3> f0_;
+    long long containmentEvents_ = 0;
+    bool outflow_ = false;
+
+    void applyBoundary(Particle& p, long long& events, bool& outflow) const;
 };
 
 } // namespace aquasph

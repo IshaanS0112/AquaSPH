@@ -1,0 +1,458 @@
+openapi: 3.1.0
+info:
+  title: AquaSPH Platform API
+  version: 1.0.0
+  description: |
+    Submit, monitor and retrieve 3D SPH fluid simulations. Jobs run
+    asynchronously on a worker pool; identical requests are served from a
+    content-addressed result cache. Design: docs/platform/TRD.md.
+
+    All errors are RFC 9457 `application/problem+json`.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": { description: Process is alive }
+  /readyz:
+    get:
+      summary: Readiness probe (Postgres reachable; Redis reported, not required)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+  /openapi.yaml:
+    get:
+      summary: This document
+      security: []
+      responses:
+        "200": { description: OpenAPI 3.1 YAML }
+
+  /v1/scenarios:
+    get:
+      summary: List the scenario catalogue
+      responses:
+        "200":
+          description: Scenarios with their credibility tier
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/ScenarioSummary" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/scenarios/{name}:
+    get:
+      summary: Get one scenario, including its full spec
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Scenario with spec }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/jobs:
+    post:
+      summary: Submit a job
+      description: |
+        Returns 201 with the job. If an identical request (same resolved spec,
+        run parameters and solver build) has already completed, the job is
+        created already `completed` with `cache_hit: true`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobRequest" }
+      responses:
+        "201":
+          description: Job created (queued, or completed from cache)
+          headers:
+            Location: { schema: { type: string } }
+            Idempotent-Replayed: { schema: { type: string, enum: ["true"] } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/BadRequest" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      summary: List jobs, newest first
+      parameters:
+        - { name: state, in: query, schema: { $ref: "#/components/schemas/JobState" } }
+        - { name: scenario, in: query, schema: { type: string } }
+        - { name: sweep_id, in: query, schema: { type: string, format: uuid } }
+        - name: label
+          in: query
+          description: "Repeatable `key:value` filter; all must match."
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Job" } }
+                  next_cursor: { type: [string, "null"] }
+  /v1/jobs/{id}:
+    get:
+      summary: Get a job
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - { name: include, in: query, schema: { type: string, enum: [spec] } }
+      responses:
+        "200":
+          description: The job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/jobs/{id}/cancel:
+    post:
+      summary: Cancel a job
+      description: |
+        A queued job is cancelled immediately. A running job is flagged; its
+        worker stops the solver at the next heartbeat and keeps the partial
+        metrics. 409 if the job has already finished.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "202":
+          description: Cancelled or cancellation requested
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/jobs/{id}/events:
+    get:
+      summary: Stream job progress (Server-Sent Events)
+      description: |
+        Events: `snapshot` (full job, on connect), `progress`, `state`, and
+        `done` (final job; the stream then closes). Comment lines (`: ping`)
+        keep the connection alive.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: An event stream
+          content:
+            text/event-stream: {}
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/jobs/{id}/history:
+    get:
+      summary: State transitions of a job (audit trail)
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Transitions in order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string, format: uuid }
+                  events: { type: array, items: { $ref: "#/components/schemas/JobEvent" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/jobs/{id}/result:
+    get:
+      summary: The solver's metrics for a job
+      description: "`partial` is true for a cancelled or timed-out run, whose metrics describe the run up to where it stopped."
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string, format: uuid }
+                  state: { $ref: "#/components/schemas/JobState" }
+                  outcome: { type: [string, "null"], enum: [stable, unstable, null] }
+                  cache_hit: { type: boolean }
+                  partial: { type: boolean }
+                  metrics: { type: object, description: "The solver's metrics.json" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/jobs/{id}/artifacts:
+    get:
+      summary: List a job's output files
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Artifacts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string, format: uuid }
+                  data: { type: array, items: { $ref: "#/components/schemas/Artifact" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/jobs/{id}/artifacts/{name}:
+    get:
+      summary: Download an artifact (supports Range and If-None-Match)
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: File contents; ETag is the SHA-256 }
+        "206": { description: Partial content }
+        "304": { description: Not modified }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/sweeps:
+    post:
+      summary: Submit a parameter sweep
+      description: |
+        The grid's cartesian product becomes child jobs, created atomically
+        with the sweep. Children already in the cache complete immediately.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SweepRequest" }
+      responses:
+        "201":
+          description: Sweep created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sweep" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      summary: List sweeps, newest first
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200": { description: A page of sweeps }
+  /v1/sweeps/{id}:
+    get:
+      summary: Get a sweep with per-state counts
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The sweep
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sweep" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/sweeps/{id}/results:
+    get:
+      summary: Results table of a sweep
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: metrics
+          in: query
+          description: Comma-separated JSON Pointers into metrics.json (default a standard set)
+          schema: { type: string, example: "/density/max,/time/steps" }
+        - { name: format, in: query, schema: { type: string, enum: [json, csv], default: json } }
+      responses:
+        "200": { description: One row per child job }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/sweeps/{id}/cancel:
+    post:
+      summary: Cancel every unfinished job in a sweep
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "202": { description: Cancelled or flagged }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: "API key: `aqk_<prefix>_<secret>`, created with `aquasph-admin key create`."
+  parameters:
+    ID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Cursor: { name: cursor, in: query, description: "`next_cursor` from the previous page", schema: { type: string } }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: |
+        Retrying with the same key and body returns the original resource
+        (header `Idempotent-Replayed: true`) instead of creating another.
+        The same key with a different body is a 422. Keys expire after 24 h.
+      schema: { type: string, maxLength: 255 }
+  responses:
+    BadRequest:
+      description: Malformed request
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Unauthorized:
+      description: Missing, malformed, invalid or revoked API key
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    NotFound:
+      description: No such resource for this tenant
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Conflict:
+      description: Not allowed in the resource's current state
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    ValidationError:
+      description: The request is well-formed but invalid; `errors` lists every problem
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    TooManyRequests:
+      description: Rate limit (`type` rate-limited) or tenant quota (`type` quota-exceeded); see Retry-After
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+  schemas:
+    JobState:
+      type: string
+      enum: [queued, running, completed, failed, cancelled]
+    ScenarioSummary:
+      type: object
+      properties:
+        name: { type: string }
+        tier: { type: integer, description: "1 = physically demonstrable, 2 = visual experiment, not predictive" }
+        description: { type: string }
+        approximation: { type: string }
+    JobRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        scenario: { type: string, description: "Catalogue name. Give this or `spec`." }
+        spec: { type: object, description: "A complete inline scenario. Give this or `scenario`." }
+        overrides:
+          type: object
+          description: |
+            JSON Pointer -> value. Each pointer must exist in the scenario and
+            the value must keep its JSON type.
+          additionalProperties: true
+          example: { "/materials/0/viscosity": 1.5 }
+        quality: { type: string, enum: [low, medium, high], default: low }
+        sim_time: { type: number, exclusiveMinimum: 0, maximum: 300 }
+        max_steps: { type: integer, minimum: 1 }
+        timeout_seconds: { type: integer, minimum: 1, description: "Capped by the tenant's max_wall_seconds" }
+        priority: { type: integer, minimum: 0, maximum: 9, default: 5 }
+        labels: { type: object, additionalProperties: { type: string, maxLength: 128 }, maxProperties: 16 }
+        cache: { type: boolean, default: true }
+    SweepRequest:
+      allOf:
+        - $ref: "#/components/schemas/JobRequest"
+        - type: object
+          required: [grid]
+          properties:
+            grid:
+              type: object
+              description: JSON Pointer -> list of values; the cartesian product is run
+              additionalProperties: { type: array, minItems: 1 }
+              example: { "/materials/0/viscosity": [0.5, 1, 2], "/numerics/xsph_epsilon": [0, 0.5] }
+            priority: { type: integer, minimum: 0, maximum: 9, default: 3 }
+    Progress:
+      type: [object, "null"]
+      properties:
+        t: { type: number }
+        t_end: { type: number }
+        fraction: { type: number }
+        step: { type: integer }
+        fluid: { type: integer }
+        max_speed: { type: number }
+        wall_s: { type: number }
+    Job:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        state: { $ref: "#/components/schemas/JobState" }
+        outcome: { type: [string, "null"], enum: [stable, unstable, null] }
+        scenario: { type: string }
+        quality: { type: string }
+        sim_time: { type: number }
+        max_steps: { type: integer }
+        max_particles: { type: integer }
+        timeout_seconds: { type: integer }
+        priority: { type: integer }
+        overrides: { type: object }
+        labels: { type: object }
+        sweep_id: { type: string, format: uuid }
+        sweep_params: { type: object }
+        progress: { $ref: "#/components/schemas/Progress" }
+        attempt: { type: integer }
+        max_attempts: { type: integer }
+        cancel_requested: { type: boolean }
+        cache_hit: { type: boolean }
+        source_job_id: { type: string, format: uuid }
+        spec_hash: { type: string }
+        solver_id: { type: [string, "null"], description: SHA-256 of the solver binary that produced the result }
+        error:
+          type: [object, "null"]
+          properties:
+            code: { type: string, enum: [invalid_scenario, timeout, solver_crashed, lease_expired, internal] }
+            message: { type: string }
+        spec: { type: object, description: "Only with ?include=spec" }
+        created_at: { type: string, format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        links: { type: object }
+    Sweep:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [running, completed] }
+        scenario: { type: string }
+        quality: { type: string }
+        grid: { type: object }
+        overrides: { type: object }
+        labels: { type: object }
+        total: { type: integer }
+        counts: { type: object, additionalProperties: { type: integer } }
+        cache_hits: { type: integer }
+        created_at: { type: string, format: date-time }
+        links: { type: object }
+    JobEvent:
+      type: object
+      properties:
+        at: { type: string, format: date-time }
+        from_state: { oneOf: [{ $ref: "#/components/schemas/JobState" }, { type: "null" }] }
+        to_state: { $ref: "#/components/schemas/JobState" }
+        attempt: { type: integer }
+        detail: { type: string }
+    Artifact:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: integer }
+        sha256: { type: string }
+        content_type: { type: string }
+        url: { type: string }
+    Problem:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        request_id: { type: string }
+        limit: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }

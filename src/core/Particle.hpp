@@ -1,31 +1,54 @@
 #pragma once
+#include <cstdint>
 #include <glm/glm.hpp>
 
 namespace aquasph {
 
-// AoS (Array-of-Structures) layout: each Particle owns all of its state
-// contiguously.
-//
-// Tradeoff vs SoA (Structure-of-Arrays -- separate std::vector<vec3> for
-// positions, std::vector<float> for densities, etc.): SoA is generally
-// more cache- and SIMD-friendly for the density/force loops, since a loop
-// that only touches position and density doesn't have to pull mass,
-// pressure, and force into cache alongside it the way AoS does (they all
-// live in the same struct). SoA also auto-vectorizes more readily.
-// The cost is more invasive code: every "particle" access becomes several
-// parallel-array index operations instead of one struct dereference,
-// which slows down development and obscures the physics.
-//
-// Correctness came first here, so AoS is used. Revisit if profiling shows
-// the density/force loops are memory-bandwidth bound rather than
-// neighbor-search or compute bound.
+// What a particle *is*, which decides how the solver treats it.
+enum class ParticleKind : std::uint8_t {
+    Fluid = 0,
+    Boundary = 1,
+};
+
+// AoS (Array-of-Structures) layout: each Particle owns all of its state contiguously.
 struct Particle {
     glm::vec3 position{0.0f};
     glm::vec3 velocity{0.0f};
     glm::vec3 force{0.0f};
+
+    // Colour-field normal used by the Akinci et al. (2013) surface-tension curvature term.
+    glm::vec3 normal{0.0f};
+
+    // XSPH velocity correction (Monaghan 1989): the neighbourhood-averaged velocity offset used
+    // to *advect* the particle, without altering the momentum-carrying velocity.
+    glm::vec3 xsphDelta{0.0f};
+
     float density = 0.0f;
     float pressure = 0.0f;
+
+    // Fluid particles: real mass, kg (derived from lattice spacing and the material's rest
+    // density -- see FluidRegion.cpp).
     float mass = 1.0f;
+
+    // Boundary particles only: the Akinci et al. (2012) boundary volume V_b = 1 / sum_k W(r_bk)
+    // over neighbouring *boundary* particles.
+    float volume = 0.0f;
+
+    ParticleKind kind = ParticleKind::Fluid;
+
+    // Index into the scenario's MaterialTable. Boundary particles carry
+    // 0; they have no material of their own.
+    std::uint8_t material = 0;
+
+    // Explicit zeroed padding: implicit padding is uninitialised under Clang, which made
+    // memcmp-based determinism checks fail on macOS even though every field matched.
+    std::uint8_t reserved[2] = {0, 0};
 };
+
+static_assert(sizeof(Particle) == 5 * sizeof(glm::vec3) + 4 * sizeof(float) + 4,
+              "Particle must have no implicit padding bytes");
+
+inline bool isFluid(const Particle& p) { return p.kind == ParticleKind::Fluid; }
+inline bool isBoundary(const Particle& p) { return p.kind == ParticleKind::Boundary; }
 
 } // namespace aquasph

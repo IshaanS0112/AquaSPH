@@ -44,9 +44,8 @@ Shader::Shader(const std::string& vertexSrc, const std::string& fragmentSrc) {
     GLint success = GL_FALSE_V;
     glGetProgramiv(program_, GL_LINK_STATUS, &success);
 
-    // Shader objects are ref-counted by attachment; safe (and correct
-    // practice) to delete the stage objects right after linking -- the
-    // linked program keeps whatever it needs.
+    // Shader objects are ref-counted by attachment; safe (and correct practice) to delete the
+    // stage objects right after linking.
     glDeleteShader(vs);
     glDeleteShader(fs);
 
@@ -84,6 +83,25 @@ void Shader::setFloat(const char* name, float value) const {
 void Shader::setVec3(const char* name, float x, float y, float z) const {
     const GLint loc = glGetUniformLocation(program_, name);
     glUniform3f(loc, x, y, z);
+}
+
+
+void Shader::setInt(const char* name, int value) const {
+    glUniform1i(glGetUniformLocation(program_, name), value);
+}
+
+void Shader::setVec2(const char* name, float x, float y) const {
+    glUniform2f(glGetUniformLocation(program_, name), x, y);
+}
+
+void Shader::setVec4(const char* name, float x, float y, float z, float w) const {
+    glUniform4f(glGetUniformLocation(program_, name), x, y, z, w);
+}
+
+void Shader::setTexture(const char* name, int unit, unsigned int texture) const {
+    glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(unit));
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glUniform1i(glGetUniformLocation(program_, name), unit);
 }
 
 } // namespace aquasph

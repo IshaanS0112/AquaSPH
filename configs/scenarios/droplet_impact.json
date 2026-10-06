@@ -1,0 +1,127 @@
+{
+  "name": "droplet_impact",
+  "tier": 1,
+  "description": "A droplet strikes a shallow pool; surface tension forms a crown and a central Worthington jet.",
+  "approximation": "Run at a scaled-up droplet size with the surface-tension coefficient chosen to match the Weber number of a millimetric water droplet impact (We ~ 250), because a real 2 mm droplet cannot be resolved at these particle counts. The dynamics are Weber-similar, but sigma = 0.38 N/m is NOT water's 0.073 N/m and the absolute length and time scales are not those of a real raindrop.",
+  "domain": {
+    "min": [
+      -0.045,
+      0.0,
+      -0.045
+    ],
+    "max": [
+      0.045,
+      0.09,
+      0.045
+    ],
+    "faces": {
+      "y_max": "open"
+    },
+    "boundary_particles": true,
+    "boundary_layers": 2
+  },
+  "materials": [
+    {
+      "name": "water",
+      "rest_density": 1000.0,
+      "sound_speed": 25.0,
+      "gamma": 7.0,
+      "viscosity": 0.6,
+      "surface_tension": 0.38,
+      "absorption": [
+        0.55,
+        0.16,
+        0.09
+      ]
+    }
+  ],
+  "fluid_regions": [
+    {
+      "type": "box",
+      "material": "water",
+      "min": [
+        -0.045,
+        0.0,
+        -0.045
+      ],
+      "max": [
+        0.045,
+        0.02,
+        0.045
+      ]
+    },
+    {
+      "type": "sphere",
+      "material": "water",
+      "center": [
+        0.0,
+        0.045,
+        0.0
+      ],
+      "radius": 0.012,
+      "min": [
+        -0.045,
+        0.0,
+        -0.045
+      ],
+      "max": [
+        0.045,
+        0.09,
+        0.045
+      ],
+      "velocity": [
+        0.0,
+        -2.0,
+        0.0
+      ]
+    }
+  ],
+  "numerics": {
+    "h": 0.0038,
+    "spacing_ratio": 0.5,
+    "xsph_epsilon": 0.35,
+    "boundary_friction": 1.0,
+    "dt_max": 0.0002
+  },
+  "duration": {
+    "simulated_time": 0.12,
+    "output_interval": 0.002
+  },
+  "metrics": {
+    "probes": [
+      {
+        "name": "crown_centre",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "radius": 0.006
+      },
+      {
+        "name": "crown_rim",
+        "position": [
+          0.022,
+          0.0,
+          0.0
+        ],
+        "radius": 0.006
+      }
+    ]
+  },
+  "camera": {
+    "target": [
+      0.0,
+      0.025,
+      0.0
+    ],
+    "distance": 0.3,
+    "yaw_deg": 38.0,
+    "pitch_deg": 18.0
+  },
+  "render": {
+    "mode": "surface",
+    "reference_speed": 2.5,
+    "palette": "teal"
+  }
+}

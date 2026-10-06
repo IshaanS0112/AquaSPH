@@ -7,10 +7,7 @@
 using namespace aquasph;
 
 TEST(DensityPressure, SingleParticleDensityMatchesSelfKernelWeight) {
-    // A lone particle has no neighbors, so its density estimate reduces
-    // to m_i * W(0, h) -- not exactly m_i (W(0) != 1 in general for a
-    // normalized kernel), but it should be deterministic and match the
-    // closed form exactly.
+    // A lone particle has no neighbors, so its density estimate reduces to m_i * W(0, h).
     const float h = 0.1f;
     CubicSplineKernel kernel(h);
     std::vector<Particle> particles(1);
@@ -29,12 +26,9 @@ TEST(DensityPressure, SingleParticleDensityMatchesSelfKernelWeight) {
 }
 
 TEST(DensityPressure, UniformLatticeApproximatesRestDensity) {
-    // Pack particles on a lattice with mass chosen so mass-per-volume
-    // equals rho0, then check the SPH density estimate for an interior
-    // (fully-surrounded) particle lands within a generous tolerance of
-    // rho0. Some deviation from rho0 is expected and normal: it's a
-    // discrete quadrature of a continuous kernel over a finite lattice,
-    // not an exact match.
+    // Pack particles on a lattice with mass chosen so mass-per-volume equals rho0, then check
+    // the SPH density estimate for an interior (fully-surrounded) particle lands within a
+    // generous tolerance of rho0.
     const float h = 0.1f;
     const float spacing = h * 0.5f;
     const float rho0 = 1000.0f;
@@ -74,12 +68,7 @@ TEST(TaitEOSTest, PositivePressureWhenCompressed) {
 }
 
 TEST(TaitEOSTest, PressureClampedToZeroWhenExpanded) {
-    // Below rest density, the raw Tait formula goes negative ("tensile"
-    // pressure). We deliberately clamp to 0 to avoid SPH's well-known
-    // tensile instability at free surfaces -- see the comment above
-    // TaitEOS::pressure() in DensityPressure.hpp for the full story
-    // (this was found by actually running the dam-break scenario and
-    // watching density run away within 15 timesteps before the fix).
+    // Below rest density, the raw Tait formula goes negative ("tensile" pressure).
     TaitEOS eos(1000.0f, 40.0f, 7.0f);
     EXPECT_FLOAT_EQ(eos.pressure(990.0f), 0.0f);
     EXPECT_FLOAT_EQ(eos.pressure(500.0f), 0.0f);

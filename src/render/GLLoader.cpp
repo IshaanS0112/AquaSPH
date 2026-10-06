@@ -1,11 +1,4 @@
-// GLFW_INCLUDE_NONE: tell glfw3.h not to pull in a client API header
-// (GL/gl.h) on its own. This is GLFW's own documented way to pair with a
-// custom loader (this file) instead of a system OpenGL header -- see
-// https://www.glfw.org/docs/latest/build_guide.html#build_link_glad --
-// glfwGetProcAddress is the whole point of using a loader instead of
-// linking function names directly, since letting glfw3.h's own GL/gl.h
-// include declare them first would create the exact redefinition
-// this loader exists to avoid.
+// GLFW_INCLUDE_NONE: tell glfw3.h not to pull in a client API header (GL/gl.h) on its own.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -51,12 +44,37 @@ PFN_glUniformMatrix4fv       glUniformMatrix4fv = nullptr;
 PFN_glUniform1f              glUniform1f = nullptr;
 PFN_glUniform3f              glUniform3f = nullptr;
 
+// Added for the screen-space fluid renderer.
+PFN_glDrawElements              glDrawElements = nullptr;
+PFN_glDepthMask                 glDepthMask = nullptr;
+PFN_glDepthFunc                 glDepthFunc = nullptr;
+PFN_glCullFace                  glCullFace = nullptr;
+PFN_glGetIntegerv               glGetIntegerv = nullptr;
+PFN_glPixelStorei               glPixelStorei = nullptr;
+PFN_glReadPixels                glReadPixels = nullptr;
+PFN_glGenTextures               glGenTextures = nullptr;
+PFN_glBindTexture               glBindTexture = nullptr;
+PFN_glDeleteTextures            glDeleteTextures = nullptr;
+PFN_glTexImage2D                glTexImage2D = nullptr;
+PFN_glTexParameteri             glTexParameteri = nullptr;
+PFN_glActiveTexture             glActiveTexture = nullptr;
+PFN_glGenFramebuffers           glGenFramebuffers = nullptr;
+PFN_glBindFramebuffer           glBindFramebuffer = nullptr;
+PFN_glDeleteFramebuffers        glDeleteFramebuffers = nullptr;
+PFN_glFramebufferTexture2D      glFramebufferTexture2D = nullptr;
+PFN_glCheckFramebufferStatus    glCheckFramebufferStatus = nullptr;
+PFN_glDrawBuffers               glDrawBuffers = nullptr;
+PFN_glGenRenderbuffers          glGenRenderbuffers = nullptr;
+PFN_glBindRenderbuffer          glBindRenderbuffer = nullptr;
+PFN_glRenderbufferStorage       glRenderbufferStorage = nullptr;
+PFN_glFramebufferRenderbuffer   glFramebufferRenderbuffer = nullptr;
+PFN_glDeleteRenderbuffers       glDeleteRenderbuffers = nullptr;
+PFN_glUniform1i                 glUniform1i = nullptr;
+PFN_glUniform2f                 glUniform2f = nullptr;
+PFN_glUniform4f                 glUniform4f = nullptr;
+
 namespace {
-// Loads one symbol and reports its name on failure -- deliberately
-// verbose (one line per missing symbol, not just a single "loading
-// failed") because the alternative is a silent null-pointer crash the
-// first time that particular GL call executes, which is a much worse
-// debugging experience than a clear list at startup.
+// Loads one symbol and reports its name on failure.
 template <typename PFN>
 bool loadOne(PFN& out, const char* name) {
     out = reinterpret_cast<PFN>(glfwGetProcAddress(name));
@@ -106,6 +124,36 @@ bool loadGLFunctions() {
     ok &= loadOne(glUniformMatrix4fv, "glUniformMatrix4fv");
     ok &= loadOne(glUniform1f, "glUniform1f");
     ok &= loadOne(glUniform3f, "glUniform3f");
+
+    // Screen-space fluid renderer: framebuffer objects, float textures, and the extra uniform
+    // setters the SSFR passes need.
+    ok &= loadOne(glDrawElements, "glDrawElements");
+    ok &= loadOne(glDepthMask, "glDepthMask");
+    ok &= loadOne(glDepthFunc, "glDepthFunc");
+    ok &= loadOne(glCullFace, "glCullFace");
+    ok &= loadOne(glGetIntegerv, "glGetIntegerv");
+    ok &= loadOne(glPixelStorei, "glPixelStorei");
+    ok &= loadOne(glReadPixels, "glReadPixels");
+    ok &= loadOne(glGenTextures, "glGenTextures");
+    ok &= loadOne(glBindTexture, "glBindTexture");
+    ok &= loadOne(glDeleteTextures, "glDeleteTextures");
+    ok &= loadOne(glTexImage2D, "glTexImage2D");
+    ok &= loadOne(glTexParameteri, "glTexParameteri");
+    ok &= loadOne(glActiveTexture, "glActiveTexture");
+    ok &= loadOne(glGenFramebuffers, "glGenFramebuffers");
+    ok &= loadOne(glBindFramebuffer, "glBindFramebuffer");
+    ok &= loadOne(glDeleteFramebuffers, "glDeleteFramebuffers");
+    ok &= loadOne(glFramebufferTexture2D, "glFramebufferTexture2D");
+    ok &= loadOne(glCheckFramebufferStatus, "glCheckFramebufferStatus");
+    ok &= loadOne(glDrawBuffers, "glDrawBuffers");
+    ok &= loadOne(glGenRenderbuffers, "glGenRenderbuffers");
+    ok &= loadOne(glBindRenderbuffer, "glBindRenderbuffer");
+    ok &= loadOne(glRenderbufferStorage, "glRenderbufferStorage");
+    ok &= loadOne(glFramebufferRenderbuffer, "glFramebufferRenderbuffer");
+    ok &= loadOne(glDeleteRenderbuffers, "glDeleteRenderbuffers");
+    ok &= loadOne(glUniform1i, "glUniform1i");
+    ok &= loadOne(glUniform2f, "glUniform2f");
+    ok &= loadOne(glUniform4f, "glUniform4f");
     return ok;
 }
 
