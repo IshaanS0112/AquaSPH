@@ -1,0 +1,172 @@
+/* ==========================================================================
+   Graphite theme — Tailwind v4 + shadcn/ui tokens
+   Drop into app/globals.css (Next.js) or src/index.css (Vite), replacing the
+   :root / .dark / @theme inline blocks shadcn generated. Graphite is dark-only.
+
+   NAMING GOTCHA: in shadcn, `--primary` is the brand color and `--accent` is
+   the SUBTLE hover background. Our design-system "accent" (lime) maps to
+   shadcn `--primary`. Don't put lime in shadcn `--accent` or every hovered
+   menu item turns lime.
+
+   Fonts: load Geist + Geist Mono (next/font/google, or the <link> below) and
+   expose them as --font-geist / --font-geist-mono.
+   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+   ========================================================================== */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  color-scheme: dark;
+  --radius: 0.625rem; /* 10px cards; controls use radius-md = 6px */
+
+  /* surfaces */
+  --background: #0A0B0D;
+  --foreground: #E8EAED;
+  --card: #111317;
+  --card-foreground: #E8EAED;
+  --popover: #171A1F;
+  --popover-foreground: #E8EAED;
+
+  /* brand accent (design-system "accent") */
+  --primary: #C6F432;
+  --primary-foreground: #0A0B0D;
+
+  /* neutrals */
+  --secondary: #171A1F;
+  --secondary-foreground: #E8EAED;
+  --muted: #171A1F;
+  --muted-foreground: #9097A1;
+  --accent: #171A1F;            /* shadcn hover bg, NOT brand */
+  --accent-foreground: #E8EAED;
+
+  /* status */
+  --destructive: #F87171;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --info: #60A5FA;
+
+  /* lines & focus */
+  --border: #23262D;
+  --border-strong: #343842;
+  --input: #343842;
+  --ring: #C6F432;
+
+  /* extras from the design system */
+  --surface-2: #171A1F;
+  --text-subtle: #5F6670;
+  --brand-tint: rgba(198, 244, 50, 0.12);
+
+  /* charts (series order) */
+  --chart-1: #C6F432;
+  --chart-2: #60A5FA;
+  --chart-3: #FBBF24;
+  --chart-4: #F2805A;
+  --chart-5: #3CC8B4;
+  --chart-6: #8A919C;
+
+  /* sidebar */
+  --sidebar: #111317;
+  --sidebar-foreground: #E8EAED;
+  --sidebar-primary: #C6F432;
+  --sidebar-primary-foreground: #0A0B0D;
+  --sidebar-accent: rgba(198, 244, 50, 0.12);
+  --sidebar-accent-foreground: #E8EAED;
+  --sidebar-border: #23262D;
+  --sidebar-ring: #C6F432;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist, "Geist"), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist, "Geist"), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono, "Geist Mono"), ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface-2: var(--surface-2);
+  --color-subtle: var(--text-subtle);
+  --color-brand-tint: var(--brand-tint);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: var(--radius);
+  --radius-xl: 14px;
+
+  --ease-out-quint: cubic-bezier(0.2, 0, 0, 1);
+
+  /* named values so components never need arbitrary [..] classes */
+  --text-2xs: 11px;          /* text-2xs: labels, badges only */
+  --tracking-label: 0.08em;  /* tracking-label */
+  --tracking-display: -0.02em; /* tracking-display */
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3 { @apply font-display tracking-display; }
+  .num, td[data-num], [data-numeric] { font-variant-numeric: tabular-nums; @apply font-mono; }
+  /* Section label with accent tick — the Graphite signature detail */
+  .label-tick {
+    @apply font-mono text-2xs uppercase tracking-label text-muted-foreground inline-flex items-center gap-2;
+  }
+  .label-tick::before { content: ""; width: 2px; height: 10px; background: var(--primary); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   AquaSPH additions. Token-based only.
+   -------------------------------------------------------------------------- */
+@layer base {
+  html { background: var(--background); }
+  ::selection { background: var(--brand-tint); }
+  /* Thin scrollbars that sit on the surface instead of the OS default. */
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+}
+
+@layer utilities {
+  /* Faint dot-grid: the Graphite signature for hero and empty states only. */
+  .dot-grid {
+    background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+  .tabular { font-variant-numeric: tabular-nums; }
+}

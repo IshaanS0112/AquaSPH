@@ -1,0 +1,13 @@
+# The image builds the solver from src/ and the control plane from
+# backend/; nothing else from the working tree belongs in the context.
+.git
+!.sandbox-ca.crt
+**/build*/
+backend/data/
+docs/
+results/
+validation/
+benchmarks/
+scripts/
+**/*.log
+**/.DS_Store

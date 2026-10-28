@@ -1,0 +1,72 @@
+{
+  "name": "flood",
+  "tier": 2,
+  "description": "Flow propagating over a sloping floodplain past obstacles, with a downstream outflow.",
+  "approximation": "TIER 2 -- A VISUALISATION, NOT A HYDROLOGICAL PREDICTION. Terrain is an analytic slope with Gaussian bumps rather than survey data; there is no infiltration, no roughness model, no sediment and no building failure. Depths and arrival times are internally consistent measurements of this simulation, not forecasts for any real site, and must not be presented as such.",
+
+  "domain": {
+    "min": [0.0, 0.0, 0.0],
+    "max": [2.4, 0.6, 1.2],
+    "faces": { "x_max": "open", "y_max": "open" },
+    "boundary_particles": true,
+    "boundary_layers": 2
+  },
+
+  "materials": [
+    { "name": "water", "rest_density": 1000.0, "sound_speed": 25.0, "gamma": 7.0,
+      "viscosity": 6.0, "surface_tension": 0.0, "absorption": [0.55, 0.16, 0.09] }
+  ],
+
+  "fluid_regions": [
+    { "type": "box", "material": "water", "min": [0.0, 0.06, 0.0], "max": [0.35, 0.34, 1.2] }
+  ],
+
+  "emitters": [
+    {
+      "type": "box", "material": "water",
+      "min": [0.03, 0.10, 0.1], "max": [0.06, 0.30, 1.1],
+      "direction": [1.0, 0.0, 0.0], "speed": 1.2,
+      "schedule": { "kind": "ramp", "value": 1.0, "start": 0.0, "end": 0.5 },
+      "end_time": 4.0
+    }
+  ],
+
+  "obstacles": [
+    {
+      "name": "floodplain",
+      "type": "heightfield",
+      "min": [0.0, 0.0, 0.0], "max": [2.4, 0.6, 1.2],
+      "field": {
+        "base": 0.06, "origin": [0.0, 0.0], "slope": [-0.02, 0.0],
+        "min_height": 0.0, "max_height": 0.35,
+        "bumps": [
+          { "amplitude": 0.10, "center": [1.1, 0.35], "sigma": 0.16 },
+          { "amplitude": 0.08, "center": [1.5, 0.85], "sigma": 0.14 }
+        ]
+      }
+    },
+    { "name": "block_a", "type": "box", "min": [0.85, 0.0, 0.72], "max": [1.02, 0.22, 0.90] },
+    { "name": "block_b", "type": "box", "min": [1.45, 0.0, 0.22], "max": [1.62, 0.22, 0.42] },
+    { "name": "block_c", "type": "box", "min": [1.85, 0.0, 0.55], "max": [2.02, 0.22, 0.75] }
+  ],
+
+  "sinks": [
+    { "type": "box", "min": [2.3, 0.0, 0.0], "max": [2.4, 0.6, 1.2] }
+  ],
+
+  "numerics": { "h": 0.038, "spacing_ratio": 0.5, "xsph_epsilon": 0.5, "dt_max": 0.001 },
+  "duration": { "simulated_time": 4.5, "output_interval": 0.03 },
+
+  "metrics": {
+    "track_inundation": true,
+    "inundation_depth": 0.03,
+    "probes": [
+      { "name": "upstream", "position": [0.5, 0.0, 0.6], "radius": 0.08 },
+      { "name": "midplain", "position": [1.2, 0.0, 0.6], "radius": 0.08 },
+      { "name": "downstream", "position": [2.0, 0.0, 0.6], "radius": 0.08 }
+    ]
+  },
+
+  "camera": { "target": [1.2, 0.15, 0.6], "distance": 3.6, "yaw_deg": 38.0, "pitch_deg": 26.0 },
+  "render": { "mode": "surface", "reference_speed": 2.5, "palette": "teal" }
+}

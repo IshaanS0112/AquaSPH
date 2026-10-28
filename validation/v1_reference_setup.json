@@ -1,0 +1,36 @@
+{
+  "name": "v1_reference_setup",
+  "tier": 1,
+  "description": "The v1 dam-break configuration, reproduced exactly, so the Phase 0 physics changes can be measured against it rather than argued about.",
+  "approximation": "Not part of the scenario library. This exists only as the controlled 'before' case for the docs/architecture.md Phase 0 comparison: same domain, same column, same h, same c0, same clamp-and-damp walls as the v1 solver, so the only differences are the physics fixes themselves.",
+
+  "domain": {
+    "min": [-1.0, -1.0, -1.0],
+    "max": [1.0, 1.0, 1.0],
+    "boundary_particles": false,
+    "containment_damping": 0.05
+  },
+  "gravity": [0.0, -9.81, 0.0],
+
+  "materials": [
+    { "name": "water", "rest_density": 1000.0, "sound_speed": 25.0, "gamma": 7.0,
+      "viscosity": 5.0, "surface_tension": 0.0 }
+  ],
+
+  "fluid_regions": [
+    { "type": "box", "material": "water",
+      "min": [-0.98, -0.98, -0.98], "max": [-0.08, -0.08, -0.08] }
+  ],
+
+  "numerics": {
+    "h": 0.1,
+    "spacing_ratio": 0.45,
+    "xsph_epsilon": 0.5,
+    "boundary_friction": 1.0,
+    "dt_max": 0.001
+  },
+
+  "duration": { "simulated_time": 1.0, "output_interval": 0.05 },
+  "camera": { "target": [0.0, 0.0, 0.0], "distance": 4.0, "yaw_deg": 38.0, "pitch_deg": 20.0 },
+  "render": { "mode": "surface", "reference_speed": 4.0 }
+}

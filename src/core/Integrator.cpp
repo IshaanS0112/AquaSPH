@@ -1,0 +1,115 @@
+#include "Integrator.hpp"
+#include "ParallelReduce.hpp"
+#include <algorithm>
+
+namespace aquasph {
+
+PredictorCorrectorIntegrator::PredictorCorrectorIntegrator(const BoundaryBox& bounds)
+    : bounds_(bounds) {}
+
+void PredictorCorrectorIntegrator::step(
+    std::vector<Particle>& particles, float dt,
+    const std::function<void(std::vector<Particle>&)>& recomputeForces) {
+
+    const int n = static_cast<int>(particles.size());
+    const int begin = std::max(0, std::min(firstFluid_, n));
+    const size_t span = static_cast<size_t>(n - begin);
+    // Grow only; never shrink. A sink that removes particles must not
+    // hand the next step a reallocation.
+    if (v0_.size() < span) { v0_.resize(span); f0_.resize(span); }
+    // Indexed as [i - begin] rather than through a base pointer biased by -begin: forming a
+    // pointer before the start of an array is undefined behaviour even when it is never
+    // dereferenced there, and sanitizers are right to flag it.
+    std::vector<glm::vec3>& v0 = v0_;
+    std::vector<glm::vec3>& f0 = f0_;
+
+    // All three loops below touch only particles[i] for their own index i -- no cross-particle
+    // reads or writes -- so each parallelizes trivially.
+    #pragma omp parallel for schedule(static)
+    for (int i = begin; i < n; ++i) {
+        v0[i - begin] = particles[i].velocity;
+        f0[i - begin] = particles[i].force;
+    }
+
+    // Step 1: predicted half-step velocity, written into particle.velocity
+    // so the recompute callback's viscosity term sees it.
+    #pragma omp parallel for schedule(static)
+    for (int i = begin; i < n; ++i) {
+        if (particles[i].kind != ParticleKind::Fluid) continue;
+        particles[i].velocity =
+            v0[i - begin] + (f0[i - begin] / particles[i].mass) * (dt * 0.5f);
+    }
+
+    // Step 2: re-evaluate forces at the half-step velocity. computeForces is itself
+    // parallelized internally.
+    recomputeForces(particles);
+
+    // Step 3 & 4: correct velocity using the half-step force, advance position with the
+    // XSPH-corrected velocity, then apply the domain faces.
+    long long events = 0;
+    bool outflow = false;
+
+    #pragma omp parallel
+    {
+        long long localEvents = 0;
+        bool localOutflow = false;
+
+        #pragma omp for schedule(static) nowait
+        for (int i = begin; i < n; ++i) {
+            Particle& p = particles[i];
+            if (p.kind != ParticleKind::Fluid) continue;
+            const glm::vec3 vNew = v0[i - begin] + (p.force / p.mass) * dt;
+            p.velocity = vNew;
+            p.position += (vNew + p.xsphDelta) * dt;
+            applyBoundary(p, localEvents, localOutflow);
+        }
+
+        #pragma omp critical
+        {
+            events += localEvents;
+            outflow = outflow || localOutflow;
+        }
+    }
+
+    containmentEvents_ += events;
+    outflow_ = outflow_ || outflow;
+}
+
+void PredictorCorrectorIntegrator::applyBoundary(Particle& p, long long& events,
+                                                  bool& outflow) const {
+    const float tol = bounds_.tolerance;
+    auto handle = [&](float& pos, float& vel, float lo, float hi,
+                       FaceMode loMode, FaceMode hiMode) {
+        if (pos < lo - tol) {
+            switch (loMode) {
+                case FaceMode::Solid:
+                    pos = lo;
+                    vel = -vel * bounds_.damping;
+                    ++events;
+                    break;
+                case FaceMode::Open:
+                    outflow = true;
+                    break;
+            }
+        } else if (pos > hi + tol) {
+            switch (hiMode) {
+                case FaceMode::Solid:
+                    pos = hi;
+                    vel = -vel * bounds_.damping;
+                    ++events;
+                    break;
+                case FaceMode::Open:
+                    outflow = true;
+                    break;
+            }
+        }
+    };
+    handle(p.position.x, p.velocity.x, bounds_.min.x, bounds_.max.x,
+           bounds_.faces[0], bounds_.faces[1]);
+    handle(p.position.y, p.velocity.y, bounds_.min.y, bounds_.max.y,
+           bounds_.faces[2], bounds_.faces[3]);
+    handle(p.position.z, p.velocity.z, bounds_.min.z, bounds_.max.z,
+           bounds_.faces[4], bounds_.faces[5]);
+}
+
+} // namespace aquasph

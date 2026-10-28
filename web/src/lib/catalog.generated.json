@@ -1,0 +1,327 @@
+{
+  "generatedFrom": "configs/scenarios + render/blender/shots.json",
+  "scenarios": [
+    {
+      "name": "coastal_wave",
+      "tier": 2,
+      "description": "A wave train generated in deep water shoals up a plane beach and runs up the slope.",
+      "approximation": "TIER 2 -- The surf zone is under-resolved: breaking, air entrainment and the resulting energy loss are not represented, so run-up is qualitative. Shoaling of the non-breaking wave in the deeper part of the flume is the part worth reading.",
+      "simulatedTime": 9,
+      "domain": [
+        3,
+        0.45,
+        0.3
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 1,
+      "waveGenerators": 1,
+      "render": {
+        "src": "/renders/coastal_wave.jpg",
+        "time": 5,
+        "quality": "low"
+      }
+    },
+    {
+      "name": "container_fill",
+      "tier": 1,
+      "description": "An inlet fills an empty vessel; the free surface rises and settles flat.",
+      "approximation": "The inlet is a prescribed-velocity source rather than a modelled pipe, so the entry jet's momentum is imposed rather than solved for.",
+      "simulatedTime": 3.2,
+      "domain": [
+        0.4,
+        0.45,
+        0.3
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 0,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/container_fill.jpg",
+        "time": 2,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "controlled_wave_tank",
+      "tier": 1,
+      "description": "Piston wavemaker in a still-water flume; amplitude, period and celerity are measured against linear theory.",
+      "approximation": "A piston paddle generates evanescent modes near the paddle as well as the propagating wave, so probes sit at least two water depths downstream. Linear (Biesel) theory is quoted only while the measured steepness stays below H/L = 1/20. The commanded wave height is about three particle spacings, so the AMPLITUDE measurement carries a quantisation floor of roughly one spacing; the period and celerity, which come from zero-crossing times rather than surface height, are far better resolved. The flume holds only about two wavelengths, so the run is analysed before reflections from the far wall return.",
+      "simulatedTime": 4.5,
+      "domain": [
+        2.4,
+        0.4,
+        0.25
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 0,
+      "waveGenerators": 1,
+      "render": {
+        "src": "/renders/controlled_wave_tank.jpg",
+        "time": 3,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "dam_break",
+      "tier": 1,
+      "description": "Collapse of a rectangular water column on a dry horizontal bed.",
+      "approximation": "Idealised initial condition (the retaining wall is removed instantaneously and completely) and no wall roughness, both of which make the simulated surge run slightly ahead of the experiment during early collapse. See docs/validation.md.",
+      "simulatedTime": 1.2,
+      "domain": [
+        1.6,
+        0.6,
+        0.3
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 0,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/dam_break.jpg",
+        "time": 0.45,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "double_dam_break",
+      "tier": 1,
+      "description": "Two opposing water columns collapse and collide, throwing a vertical central jet.",
+      "approximation": "Perfect left-right symmetry in the initial condition; the simulated jet is therefore more symmetric than any physical experiment would be.",
+      "simulatedTime": 1.4,
+      "domain": [
+        1.6,
+        0.8,
+        0.3
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 0,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/double_dam_break.jpg",
+        "time": 0.55,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "droplet_impact",
+      "tier": 1,
+      "description": "A droplet strikes a shallow pool; surface tension forms a crown and a central Worthington jet.",
+      "approximation": "Run at a scaled-up droplet size with the surface-tension coefficient chosen to match the Weber number of a millimetric water droplet impact (We ~ 250), because a real 2 mm droplet cannot be resolved at these particle counts. The dynamics are Weber-similar, but sigma = 0.38 N/m is NOT water's 0.073 N/m and the absolute length and time scales are not those of a real raindrop.",
+      "simulatedTime": 0.12,
+      "domain": [
+        0.09,
+        0.09,
+        0.09
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 0,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/droplet_impact.jpg",
+        "time": 0.05,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "flash_flood",
+      "tier": 2,
+      "description": "Rapid-onset surge down a confined channel driven by a sharply peaked inflow hydrograph.",
+      "approximation": "TIER 2 -- QUALITATIVE ONLY. The hydrograph is an invented keyframe curve, not a rainfall-runoff model, and the channel is a smooth analytic trough with no bed roughness or debris. This shows what a rapid-onset surge looks like; it does not predict one.",
+      "simulatedTime": 4,
+      "domain": [
+        2.4,
+        0.5,
+        0.6
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 1,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/flash_flood.jpg",
+        "time": 2,
+        "quality": "low"
+      }
+    },
+    {
+      "name": "flood",
+      "tier": 2,
+      "description": "Flow propagating over a sloping floodplain past obstacles, with a downstream outflow.",
+      "approximation": "TIER 2 -- A VISUALISATION, NOT A HYDROLOGICAL PREDICTION. Terrain is an analytic slope with Gaussian bumps rather than survey data; there is no infiltration, no roughness model, no sediment and no building failure. Depths and arrival times are internally consistent measurements of this simulation, not forecasts for any real site, and must not be presented as such.",
+      "simulatedTime": 4.5,
+      "domain": [
+        2.4,
+        0.6,
+        1.2
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 4,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/flood.jpg",
+        "time": 2.5,
+        "quality": "low"
+      }
+    },
+    {
+      "name": "fountain",
+      "tier": 2,
+      "description": "A vertical nozzle jet rises, breaks up ballistically, and falls back into its basin.",
+      "approximation": "TIER 2 -- Jet break-up into droplets is a surface-tension instability at scales far below the particle spacing here, so the jet fragments at the resolution limit rather than at a physical Rayleigh-Plateau wavelength. The trajectory is ballistic and correct; the break-up length is not.",
+      "simulatedTime": 2.5,
+      "domain": [
+        0.8,
+        0.9,
+        0.8
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 0,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/fountain.jpg",
+        "time": 1.5,
+        "quality": "low"
+      }
+    },
+    {
+      "name": "obstacle_flow",
+      "tier": 1,
+      "description": "Channel flow past a vertical cylinder: separation, wake, and reconnection downstream.",
+      "approximation": "The wake is laminar at this resolution. Real flow at this Reynolds number sheds a turbulent, three-dimensional wake that the artificial viscosity here represents only as bulk dissipation.",
+      "simulatedTime": 2.5,
+      "domain": [
+        1.2,
+        0.35,
+        0.4
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 1,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/obstacle_flow.jpg",
+        "time": 1.2,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "sloshing_tank",
+      "tier": 1,
+      "description": "A partially filled tank is given a short horizontal impulse and then left to oscillate freely.",
+      "approximation": "Wall friction is a single tunable coefficient rather than a resolved boundary layer, so the measured DECAY RATE is not predictive even though the period is. Two scenario parameters were set for measurability rather than for realism, and both are stated because they affect what may be concluded: the artificial viscosity (0.5 Pa*s) is lower than the dam break's so that enough oscillation cycles survive to fit a period, and the impulse is small enough (0.6 m/s^2 for 0.25 s) that the resulting wave amplitude stays a few percent of the still depth, which is the regime where the analytical comparison is valid at all.",
+      "simulatedTime": 9,
+      "domain": [
+        0.6,
+        0.3,
+        0.2
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 0,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/sloshing_tank.jpg",
+        "time": 1.6,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "spillway",
+      "tier": 1,
+      "description": "Reservoir discharging over a broad-crested weir onto a downstream apron.",
+      "approximation": "The weir is a rectangular block, not a shaped ogee crest, so the discharge coefficient is that of a sharp-edged broad crest and should not be read as a design curve for any real spillway.",
+      "simulatedTime": 2.5,
+      "domain": [
+        1.4,
+        0.5,
+        0.25
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 1,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/spillway.jpg",
+        "time": 1.6,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "tsunami_pulse",
+      "tier": 2,
+      "description": "A single long-wave pulse launched by a sudden paddle displacement, propagating over a shelf and running up a slope.",
+      "approximation": "TIER 2 -- THIS IS A LONG-WAVE PROPAGATION EXPERIMENT, NOT A TSUNAMI MODEL. A real tsunami is a hundreds-of-kilometre wave over ocean-depth bathymetry with Coriolis and dispersive effects over hours of propagation; this is a metre-scale flume pulse over a ramp lasting seconds. It demonstrates how a solitary long wave shoals and runs up. Nothing here transfers to any real coastline, and no inundation number from it should be quoted as a hazard estimate.",
+      "simulatedTime": 6,
+      "domain": [
+        3,
+        0.45,
+        0.3
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 0,
+      "obstacles": 1,
+      "waveGenerators": 1,
+      "render": {
+        "src": "/renders/tsunami_pulse.jpg",
+        "time": 3,
+        "quality": "medium"
+      }
+    },
+    {
+      "name": "waterfall",
+      "tier": 2,
+      "description": "A continuous stream falls from a ledge into a plunge pool.",
+      "approximation": "TIER 2 -- The plunge is a two-phase problem: a real waterfall entrains air and turns white. This solver is single-phase, so the plunge pool is rendered as clear water with no aeration, foam or spray. Those are Tier 3 extension points.",
+      "simulatedTime": 3,
+      "domain": [
+        1,
+        1,
+        0.5
+      ],
+      "materials": [
+        "water"
+      ],
+      "emitters": 1,
+      "obstacles": 1,
+      "waveGenerators": 0,
+      "render": {
+        "src": "/renders/waterfall.jpg",
+        "time": 1.6,
+        "quality": "medium"
+      }
+    }
+  ]
+}

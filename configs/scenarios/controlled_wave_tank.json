@@ -1,0 +1,133 @@
+{
+  "name": "controlled_wave_tank",
+  "tier": 1,
+  "description": "Piston wavemaker in a still-water flume; amplitude, period and celerity are measured against linear theory.",
+  "approximation": "A piston paddle generates evanescent modes near the paddle as well as the propagating wave, so probes sit at least two water depths downstream. Linear (Biesel) theory is quoted only while the measured steepness stays below H/L = 1/20. The commanded wave height is about three particle spacings, so the AMPLITUDE measurement carries a quantisation floor of roughly one spacing; the period and celerity, which come from zero-crossing times rather than surface height, are far better resolved. The flume holds only about two wavelengths, so the run is analysed before reflections from the far wall return.",
+  "domain": {
+    "min": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max": [
+      2.4,
+      0.4,
+      0.25
+    ],
+    "faces": {
+      "y_max": "open"
+    },
+    "boundary_particles": true,
+    "boundary_layers": 2
+  },
+  "materials": [
+    {
+      "name": "water",
+      "rest_density": 1000.0,
+      "sound_speed": 15.0,
+      "gamma": 7.0,
+      "viscosity": 1.5,
+      "surface_tension": 0.0,
+      "absorption": [
+        0.55,
+        0.16,
+        0.09
+      ]
+    }
+  ],
+  "fluid_regions": [
+    {
+      "type": "box",
+      "material": "water",
+      "min": [
+        0.1,
+        0.0,
+        0.0
+      ],
+      "max": [
+        2.4,
+        0.2,
+        0.25
+      ]
+    }
+  ],
+  "wave_generators": [
+    {
+      "name": "piston",
+      "axis": "x",
+      "position": 0.1,
+      "thickness": 0.05,
+      "span_min": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "span_max": [
+        2.4,
+        0.4,
+        0.25
+      ],
+      "mode": "sinusoidal",
+      "amplitude": 0.02,
+      "period": 0.9,
+      "ramp_time": 0.9,
+      "still_water_depth": 0.2
+    }
+  ],
+  "numerics": {
+    "h": 0.03,
+    "spacing_ratio": 0.5,
+    "xsph_epsilon": 0.5,
+    "dt_max": 0.001
+  },
+  "duration": {
+    "simulated_time": 4.5,
+    "output_interval": 0.02
+  },
+  "metrics": {
+    "probes": [
+      {
+        "name": "wg1",
+        "position": [
+          0.8,
+          0.0,
+          0.125
+        ],
+        "radius": 0.03
+      },
+      {
+        "name": "wg2",
+        "position": [
+          1.4,
+          0.0,
+          0.125
+        ],
+        "radius": 0.03
+      },
+      {
+        "name": "wg3",
+        "position": [
+          2.0,
+          0.0,
+          0.125
+        ],
+        "radius": 0.03
+      }
+    ]
+  },
+  "camera": {
+    "target": [
+      1.2,
+      0.15,
+      0.125
+    ],
+    "distance": 3.6,
+    "yaw_deg": 38.0,
+    "pitch_deg": 16.0
+  },
+  "render": {
+    "mode": "surface",
+    "reference_speed": 1.0,
+    "palette": "teal"
+  }
+}

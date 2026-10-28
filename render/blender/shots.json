@@ -1,0 +1,17 @@
+{
+  "_comment": "The moment each scenario is rendered at, and the resolution it is simulated at. Medium where the simulation is cheap enough, low for the four costliest (see benchmarks/scaling_results.md, Scenario cost).",
+  "dam_break":            { "time": 0.45, "quality": "medium" },
+  "double_dam_break":     { "time": 0.55, "quality": "medium" },
+  "droplet_impact":       { "time": 0.05, "quality": "medium" },
+  "sloshing_tank":        { "time": 1.60, "quality": "medium" },
+  "obstacle_flow":        { "time": 1.20, "quality": "medium" },
+  "controlled_wave_tank": { "time": 3.00, "quality": "medium" },
+  "spillway":             { "time": 1.60, "quality": "medium" },
+  "container_fill":       { "time": 2.00, "quality": "medium" },
+  "waterfall":            { "time": 1.60, "quality": "medium" },
+  "tsunami_pulse":        { "time": 3.00, "quality": "medium" },
+  "fountain":             { "time": 1.50, "quality": "low" },
+  "flood":                { "time": 2.50, "quality": "low" },
+  "flash_flood":          { "time": 2.00, "quality": "low" },
+  "coastal_wave":         { "time": 5.00, "quality": "low" }
+}
