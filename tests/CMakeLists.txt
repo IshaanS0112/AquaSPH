@@ -31,7 +31,18 @@ set(AQUASPH_TEST_SOURCES
 )
 
 add_executable(aquasph_tests ${AQUASPH_TEST_SOURCES})
-target_link_libraries(aquasph_tests PRIVATE aquasph_core gtest gtest_main)
+# Link the namespaced targets: they carry GoogleTest's include directories
+# whether it came from find_package() (a system or Homebrew install) or from
+# FetchContent, which defines GTest::gtest / GTest::gtest_main as aliases.
+# The bare names `gtest gtest_main` only exist in the FetchContent case, so an
+# installed GoogleTest left the tests unable to find <gtest/gtest.h>.
+# CMake's FindGTest module before 3.20 names them GTest::GTest / GTest::Main.
+if(TARGET GTest::gtest_main)
+  set(AQUASPH_GTEST_LIBS GTest::gtest GTest::gtest_main)
+else()
+  set(AQUASPH_GTEST_LIBS GTest::GTest GTest::Main)
+endif()
+target_link_libraries(aquasph_tests PRIVATE aquasph_core ${AQUASPH_GTEST_LIBS})
 target_include_directories(aquasph_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 include(GoogleTest)
